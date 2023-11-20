@@ -1,13 +1,81 @@
-# This is a simple file server for SUSTech CS307 Computer Network
+# This is a simple file server for SUSTech CS305 Computer Network
 import socket
 import argparse
 import threading
+import os
+
+status_codes = {
+    200: '200 OK',
+    206: '206 Partial Content',
+    301: '301 Redirect',
+    400: '400 Bad Request',
+    401: '401 Unauthorized',
+    403: '403 Forbidden',
+    404: '404 Not Found',
+    405: '405 Method Not Allowed',
+    416: '416 Range Not Satisfiable',
+    502: '502 Bad Gateway',
+    503: '503 Service Temporarily Unavailable'
+}
+
+root_dir = os.curdir + '/data'
+
+
+def decode_path(path):
+    relative_path = '/'.join(path.split('/')[3:])
+    des_path = root_dir + '/' + relative_path
+    if os.path.exists(des_path):
+        return des_path
+    else:
+        return None
+
+
+def gen_html(root):
+    port = 9000
+    heading = f'Directory listing for {root}'
+    table = ''
+    if os.path.exists(root):
+        cur_dir = '/'.join(root.split('/')[2:])
+        parent = '/'.join(cur_dir.split('/')[:-1])
+
+        table += f'  <li><a href="http://localhost:{port}/{cur_dir}">/</a></li>\n'
+        table += f'  <li><a href="http://localhost:{port}/{parent}">../</a></li>\n'
+        for file in os.listdir(root):
+            ref = cur_dir + f'/{file}'
+            href = f'<a href="http://localhost:{port}/{ref}">'
+            table += rf'  <li>{href}{file}' + (
+                '/' if os.path.isdir(os.path.join(root, file)) else '') + r'</a></li>' + '\n'
+    else:
+        raise NotImplementedError
+
+    return f"""<!DOCTYPE html>
+<html>
+<head> 
+<meta charset="utf-8"> 
+<title>Files</title> 
+</head> 
+<body>
+
+<h1>{heading}</h1>
+<hr>
+<ul>
+{table}
+</ul>
+<hr>
+
+</body>
+</html>"""
+
+
+def send_file():
+    pass
+
 
 class Request:
     # a simple request class containing method, path and headers
     def __init__(self, method: str, path: str, headers: {str: str}):
-        self.method = method # GET, POST, PUT, DELETE
-        self.path = path # e.g. /index.html
+        self.method = method  # GET, POST, PUT, DELETE
+        self.path = path  # e.g. /index.html
         self.headers = headers
 
     @classmethod
@@ -29,14 +97,15 @@ class Request:
             headers[header.strip()] = value.strip()
 
         return cls(method, path, headers)
-    
+
     def __repr__(self) -> str:
         # output request
         request = "{} {} HTTP/1.1\r\n".format(self.method, self.path)
         request += "\r\n".join("{}: {}".format(k, v) for k, v in self.headers.items())
         request += "\r\n\r\n"
         return request
-    
+
+
 class Response:
     # a simple response class containing status code, headers and body
     def __init__(self, status_code: int, body: str):
@@ -44,13 +113,8 @@ class Response:
         self.body = body
 
     def generate_status_line(self):
-        status_line = ""
-        code = self.status_code
-        if code == 200:
-            status_line = "HTTP/1.1 200 OK"
-        elif code == 404:
-            status_line = "HTTP/1.1 404 Not Found"
-        return status_line
+        status_line = "HTTP/1.1 "
+        return status_line + status_codes[self.status_code]
 
     def generate_headers(self):
         # generate headers for response
@@ -61,11 +125,12 @@ class Response:
         return headers
 
     def generate_response_bytes(self):
-        response = self.generate_status_line()
+        response = self.generate_status_line() + '\r\n'
         response += "\r\n".join("{}: {}".format(k, v) for k, v in self.generate_headers().items())
         response += "\r\n\r\n"
         response += self.body
         return response.encode("ascii")
+
 
 class HTTPServer:
     def __init__(self, host, port):
@@ -98,16 +163,23 @@ class HTTPServer:
     def handle_client(self, client_socket):
         request = Request.from_socket(client_socket)
         print(request)
-        response = Response(200, "<h1>Hello World</h1>")
+        path = root_dir + request.path
+        if os.path.isdir(path):
+            body = gen_html(path)
+        elif os.path.isfile(path):
+            body = "<h1>Wait for a second...</h1>"
+        else:
+            body = "<h1>Hello World</h1>"
+        response = Response(200, body)
         client_socket.sendall(response.generate_response_bytes())
         if request.headers.get("Connection") == "keep-alive":
-            client_socket.close()
+            pass
+            # client_socket.close()
 
     def shutdown(self):
         self.shutdown_flag.set()
         self.socket.close()
 
-    
 
 if __name__ == "__main__":
     # Create the argument parser
@@ -120,5 +192,3 @@ if __name__ == "__main__":
     # Start the server and pass the ip and port
     server = HTTPServer(args.ip, args.port)
     server.start()
-
-
