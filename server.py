@@ -51,7 +51,7 @@ def build_file_bytes(path):
 
 
 def gen_html(root):
-    port = 9000
+    port = 8080
     heading = f'Directory listing for {root}'
     table = ''
     if os.path.exists(root):
@@ -90,19 +90,12 @@ def gen_html(root):
 
 
 def gen_txt(path):
+    # Response with the name of all items in list under the target directory
+    # `["123.png", "666/", "abc.py", "favicon.ico"]` in this case.
     items = os.listdir(path)
-    # Generate an HTML page displaying the directory contents
-    content = "<html><body>"
-    content += f"<h1>Index of {path}</h1>"
-    content += "<ul>"
-    for item in items:
-        item_path = os.path.join(path, item)
-        if os.path.isdir(item_path):
-            item += "/"
-        content += f'<li><a href="{item}">{item}</a></li>'
-    content += "</ul>"
-    content += "</body></html>"
-    return content
+    # Convert list to str
+    items = str(items)
+    return items
 
 
 def send_file(conn, path):
@@ -131,12 +124,13 @@ class Request:
     def from_socket(cls, sock: socket.socket) -> "Request":
         # read the request from socket
         # get method, url and headers
-        request_data = sock.recv(1024).decode("utf-8")
+        request_data = sock.recv(4096).decode("utf-8")
         if not request_data:
             return None
 
         request_lines = request_data.split("\r\n")
         request_line = request_lines[0]
+        print(f"request line: {request_line}")
         method, url, _ = request_line.split(" ")
 
         headers = {}
@@ -165,20 +159,6 @@ class Request:
         data_start = self.request_data.find("\r\n\r\n") + 4
         data = self.request_data[data_start:data_start + content_length]
         return data
-
-
-def authenticate(authorized_users, request):
-    # Get the username and password from the Authorization header
-    # As the info is encoded in base64, we need to decode it first
-    base64_string = request.headers.get("Authorization").split(" ")[1]
-    base64_bytes = base64_string.encode("ascii")
-    authorization = base64.b64decode(base64_bytes).decode("ascii")
-    username, password = authorization.split(":")
-    # Check if the username and password are valid
-    if username in authorized_users and authorized_users[username] == password:
-        return True
-    else:
-        return False
 
 
 class Response:
@@ -254,8 +234,9 @@ class HTTPServer:
         self.socket = None
         self.shutdown_flag = threading.Event()
         self.authorized_users = {
-            "11911922": "ok",
-            "12111448": "ok"
+            "client1": "123",
+            "client2": "123",
+            "client3": "123"
         }
 
     def start(self):
@@ -267,7 +248,6 @@ class HTTPServer:
 
         print(f"Server is now listening on {self.host}: {self.port}")
         print("Press Ctrl+C to stop the server")
-
 
         try:
             while not self.shutdown_flag.is_set():
@@ -296,60 +276,85 @@ class HTTPServer:
             if request.headers.get("Authorization") is None:
                 # No Authorization header
                 response.status_code = 401
+            elif self.check_method_allowance(request) is False:
+                response.status_code = 405
+            elif self.check_authorization(request) is False:
+                # Invalid Authorization header: username and password not match
+                response.status_code = 401
             else:
-                if not authenticate(self.authorized_users, request):
-                    # Invalid Authorization header
-                    response.status_code = 401
+                # print(f"authorized user: {request.headers.get('Authorization')}")
+                if request.method == "POST":
+                    self.handle_post(response, request, client_socket)
+                elif request.method == "GET":
+                    # Handle GET request
+                    self.handle_get(response, request)
+                elif request.method == "HEAD":
+                    # Handle HEAD request
+                    response.set_strbody("<h1>Hello World</h1>")
                 else:
-                    # print(f"authorized user: {request.headers.get('Authorization')}")
-                    if request.method == "POST":
-                        self.handle_post(response, request, client_socket)
-                    elif request.method == "GET":
-                        # Handle GET request
-                        self.handle_get(response, request)
-                    else:
-                        response.set_strbody("<h1>Hello World</h1>")
-                        # Error handling
-                        # response = Response(405)
-                        # response.set_strbody("<h1>Method Not Allowed</h1>")
-
+                    # Error handling
+                    response.status_code = 405
             client_socket.sendall(response.generate_response_bytes())
             if request.headers.get("Connection") == "close":
                 client_socket.close()
                 break
 
+
+    def check_authorization(self, request):
+        # Get the username and password from the Authorization header
+        # As the info is encoded in base64, we need to decode it first
+        base64_string = request.headers.get("Authorization").split(" ")[1]
+        base64_bytes = base64_string.encode("ascii")
+        authorization = base64.b64decode(base64_bytes).decode("ascii")
+        username, password = authorization.split(":")
+        # Check if the username and password are valid
+        if username in self.authorized_users and self.authorized_users[username] == password:
+            return True
+        else:
+            return False
+
+
+    def check_method_allowance(self, request):
+        if request.url.startswith("/upload?") or request.url.startswith("/delete?"):
+            if request.method != "POST":
+                return False
+        elif request.url.startswith("/") and request.url != "/":
+            if request.method != "GET":
+                return False
+        return True
+
+
     def handle_get(self, response, request):
         # http://localhost:8080/[access_path]?SUSTech-HTTP=[01]
         # access_path is the relative path under the /data/ folder
+        # If the requested target is a folder, the SUSTech-HTTP parameter is OPTIONAL
+        # If the requested target is a file, the SUSTech-HTTP parameter will be ignored
         relative_path = request.url.split("?")[0]
         path = root_dir + relative_path
-        if "SUSTech-HTTP" not in request.url:
-            response.status_code = 400
-            return
+        # if "SUSTech-HTTP" not in request.url:
+        #     response.status_code = 400
+        #     return
 
         # Check if the user is valid
-        if relative_path != "/":
-            username_in_path = request.url.split("?")[0].split("/")[1]
-            print(f"username in path: {username_in_path}")
-            base64_string = request.headers.get("Authorization").split(" ")[1]
-            base64_bytes = base64_string.encode("ascii")
-            authorization = base64.b64decode(base64_bytes).decode("ascii")
-            username, password = authorization.split(":")
-            if username != username_in_path or self.authorized_users[username] != password:
-                response.status_code = 403
-                return
-
-        if relative_path.startswith("/upload") or relative_path.startswith("/delete"):
-            response.status_code = 405
-            return
+        # if relative_path != "/":
+        #     username_in_path = request.url.split("=")[-1].split("/")[0]
+        #     print(f"username in path: {username_in_path}")
+        #     base64_string = request.headers.get("Authorization").split(" ")[1]
+        #     base64_bytes = base64_string.encode("ascii")
+        #     authorization = base64.b64decode(base64_bytes).decode("ascii")
+        #     username, password = authorization.split(":")
+        #     # print(f"username: {username}, username in path: {username_in_path}")
+        #     if username != username_in_path or self.authorized_users[username] != password:
+        #         response.status_code = 403
+        #         return
 
         operation = request.url.split("=")[-1]
         if os.path.isdir(path):
-            if operation == "0":
+            if operation == "0" or "SUSTech-HTTP" not in request.url:
                 response.set_content_type(HTML)
                 response.set_strbody(gen_html(path))
             elif operation == "1":
-                # response directory meta data
+                # Response with the name of all items in list under the target directory
                 response.set_content_type(TEXT)
                 response.set_strbody(gen_txt(path))
         elif os.path.isfile(path):
@@ -359,32 +364,31 @@ class HTTPServer:
             response.status_code = 404
             return
 
+
     def handle_post(self, response, request, client_socket):
-        # Check if path is provided
-        if "path=" not in request.url:
-            response.status_code = 400
-            return
+        if request.url.startswith("/upload?") or request.url.startswith("/delete?"):
+            # Check if path is provided
+            if "path=" not in request.url:
+                response.status_code = 400
+                return
 
-        # Check if the user is valid
-        username_in_path = request.url.split("/")[-1]  # path =  http://localhost:8080/upload?path=/11912113/
-        base64_string = request.headers.get("Authorization").split(" ")[1]
-        base64_bytes = base64_string.encode("ascii")
-        authorization = base64.b64decode(base64_bytes).decode("ascii")
-        username, password = authorization.split(":")
-        if username != username_in_path or self.authorized_users[username] != password:
-            response.status_code = 403
-            return
-
-        # Determine the operation
-        if request.url.startswith("/upload?"):
-            self.handle_upload(response, request, client_socket)
-        elif request.url.startswith("/delete?"):
-            self.handle_delete(response, request)
+            # Check if the user is valid
+            username_in_path = request.url.split("=")[-1].split("/")[0]
+            # path =  http://localhost:8080/upload?path=/11912113/
+            base64_string = request.headers.get("Authorization").split(" ")[1]
+            base64_bytes = base64_string.encode("ascii")
+            authorization = base64.b64decode(base64_bytes).decode("ascii")
+            username_in_authorization, password = authorization.split(":")
+            if username_in_authorization != username_in_path:
+                print(f"username in path: {username_in_path}")
+                print(f"username in authorization: {username_in_authorization}")
+                response.status_code = 403
+                return
         else:
-            response.status_code = 405
-            return
+            response.set_strbody("<h1>Other POST</h1>")
 
-    def handle_upload(self, response, request, client_socket):
+
+    def handle_upload(self, response, request):
         # upload url: http://localhost:8080/upload?path=/11912113/
 
         # Check if the target directory exist
@@ -405,6 +409,7 @@ class HTTPServer:
             file.write(data)
         return
 
+
     def handle_delete(self, response, request):
         # delete url: http://localhost:8080/delete?path=/11912113/abc.py
         # Check if the target file exist
@@ -416,9 +421,10 @@ class HTTPServer:
         # Delete the file
         os.remove(path)
 
-    def shutdown(self):
-        self.shutdown_flag.set()
-        self.socket.close()
+
+def shutdown(self):
+    self.shutdown_flag.set()
+    self.socket.close()
 
 
 if __name__ == "__main__":
