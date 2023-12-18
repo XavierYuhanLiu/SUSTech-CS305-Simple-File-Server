@@ -68,7 +68,7 @@ def render(title: str, body: str, url: str):
     <head>
         <meta charset="utf-8"> 
         <title>{title}</title>
-
+        <script src="https://cdn.bootcdn.net/ajax/libs/jquery/3.6.1/jquery.min.js"></script>
     </head>
     <body>
         <h1>{title}</h1>
