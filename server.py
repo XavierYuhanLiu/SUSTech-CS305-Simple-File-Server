@@ -219,8 +219,7 @@ class Request:
         request_lines = request_data.split("\r\n")
         request_line = request_lines[0] # GET / HTTP/1.1 这种的
         print(f"request line: {request_line}")
-        method = request_line.split(" ")[0]
-        url = request_line.split(" ")[1]
+        method, url, _ = request_line.split(" ")
 
         headers = {}
         for line in request_lines[1:]:
