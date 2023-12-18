@@ -7,6 +7,7 @@ import os
 import json
 import base64
 
+# HTTP status codes
 status_codes = {
     200: '200 OK',
     206: '206 Partial Content',
@@ -21,6 +22,7 @@ status_codes = {
     503: '503 Service Temporarily Unavailable'
 }
 
+# HTTP status code descriptions
 class bcolors:
     HEADER = '\033[95m'
     OKBLUE = '\033[94m'
@@ -43,7 +45,6 @@ conn_pool = []
 
 # store connection pool
 
-
 def decode_path(path: str):
     relative_path = '/'.join(path.split('/')[3:])
     des_path = root_dir + '/' + relative_path
@@ -60,6 +61,7 @@ def build_file_bytes(path):
             body += line
     return body
 
+# render html
 def render(title: str, body: str):
     return f"""
 <html>
@@ -74,6 +76,7 @@ def render(title: str, body: str):
 </html>
 """
 
+# generate list page
 def gen_page(root: str, port: int):
     heading = f'Directory listing for {root}'
     table = ''
@@ -144,8 +147,9 @@ class Request:
         if not request_data:
             return None
 
+        # http请求一般是用\r\n来分割的
         request_lines = request_data.split("\r\n")
-        request_line = request_lines[0]
+        request_line = request_lines[0] # GET / HTTP/1.1 这种的
         print(f"request line: {request_line}")
         method = request_line.split(" ")[0]
         url = request_line.split(" ")[1]
@@ -161,11 +165,15 @@ class Request:
             headers[parts[0].strip()] = parts[1].strip()
         
         content_length = int(headers.get("Content-Length"))
+        # \r\n是用来分割header和body的
+        # http经典规定
         data_start = request_data.find("\r\n\r\n") + 4
         body = request_data[data_start:data_start + content_length]
 
         print(f"request method: {method}")
         print(f"request url: {url}")
+
+        # return the final result
         return cls(method, url, headers, request_data, body)
 
     def __repr__(self) -> str:
@@ -188,6 +196,7 @@ class Response:
         # The connection will be closed only when the client sends a "Connection: close" header.
 
     def generate_status_line(self):
+        # 规定啊HTTp
         return "HTTP/1.1 " + status_codes[self.status_code]
 
     def set_strbody(self, body):
@@ -389,45 +398,40 @@ class HTTPServer:
         path = root_dir + '/' +  request.url.split("=")[-1].strip('/')  # root_dir = os.curdir + '/data'
         if not os.path.isdir(path):
             response.status_code = 404
-            return response
-
-        # Upload the file
-        # Get the file name
-        # filename = request.headers.get("Content-Disposition").split("=")[-1]
-        # filename = filename.replace('"', '')
-        # print("UPLOAD", f"Filename: {filename}")
-        # # Get the file content
-        # data = request.extract_data()
-        # # Store the file
-        # file_path = os.path.join(path, filename)
-        # file_data = self.rfile.read(int(self.headers.get('Content-Length')))
+            return 
 
         print(request.body)
         print(request.request_data)
+        # 格式如下
+
+        # ------WebKitFormBoundary7MA4YWxkTrZu0gW\r\n
+        # Content-Disposition: form-data; name="firstfile"; filename="a.txt"\r\n
+        # Content-Type: text/plain\r\n
+        # \r\n
+        # 123\r\n
+        # ------WebKitFormBoundary7MA4YWxkTrZu0gW--\r\n
+
+        # 其中------WebKitFormBoundary7MA4YWxkTrZu0gW是boundary，在request的header中
+        # Content-Disposition: form-data; name="firstfile"; filename="a.txt"中的filename是文件名
+        # \r\n\r\n之后的是文件内容, 即123\r\n
+
         lines = request.body.split("\r\n")
-        flag = False # false means the headers stop
+        body = request.body.split("\r\n\r\n")[1]
         filename = None
-        content = b""
+        boundary = lines[0]
         for line in lines:
-            if flag is False:
-                if line == '':
-                    flag = True
-                else:
-                    if line.startswith("Content-Disposition"):
-                        # this line contains information of file
-                        # e.g. Content-Disposition: form-data; name="firstfile"; filename="a.txt"
-                        filename = line.split("filename=")[1].strip('"')
-            else:
-                if line.startswith('-') or line == '':
-                    pass
-                else:
-                    print('read', line)
-                    print('add content', line.encode("utf-8"))
-                    content = content + line.encode("utf-8")
+            # 找到文件名
+            if line.startswith("Content-Disposition"):
+                    # this line contains information of file
+                    # e.g. Content-Disposition: form-data; name="firstfile"; filename="a.txt"
+                    filename = line.split("filename=")[1].strip('"')
+        body_end = body.find(boundary)
+        content = body[:body_end-4] # -4去掉最后的\r\n\r\n
+
         with open(f'{path}/{filename}', 'wb') as file:
-            file.write(content)
+            file.write(content.encode("utf-8"))
             file.close()
-        return response
+        return 
 
 
     def handle_delete(self, response, request):
@@ -452,15 +456,19 @@ class HTTPServer:
                 return
 
             # Check if the user is valid
-            # handle all of the three situations
-            # ?path=client1 =/client1/ ?path=client1/ ?path=client1
-            # get client1
+
+            # 首先获取用户名
+            # qq群里消息有要求支持以下三种形式
+            # ?path=/client1/  ?path=client1/ ?path=client1
             username_in_path = None
-            # 去掉前后的/
+            # request.url.split("=")[-1] 获取 path=/client1/abc.py的=后面的部分
+            # strip('/') 去掉path前后的 /
             path = request.url.split("=")[-1].strip('/')
-            if '/' in path:
+            # 剩下的path可能是 client1/abc.py 或者 client1
+            # 比如 delete?path=client1/abc.py 或者 upload?path=client1
+            if '/' in path: # delete?path=client1/abc.py的形式
                 username_in_path = path.split('/')[0]
-            else:
+            else: # e.g. upload?path=client1的形式
                 username_in_path = path
             # path =  http://localhost:8080/upload?path=/11912113/
             base64_string = request.headers.get("Authorization").split(" ")[1]
