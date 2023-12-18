@@ -21,6 +21,17 @@ status_codes = {
     503: '503 Service Temporarily Unavailable'
 }
 
+class bcolors:
+    HEADER = '\033[95m'
+    OKBLUE = '\033[94m'
+    OKCYAN = '\033[96m'
+    OKGREEN = '\033[92m'
+    WARNING = '\033[93m'
+    FAIL = '\033[91m'
+    ENDC = '\033[0m'
+    BOLD = '\033[1m'
+    UNDERLINE = '\033[4m'
+
 root_dir = os.curdir + '/data'
 
 HTML = "text/html"
@@ -33,7 +44,7 @@ conn_pool = []
 # store connection pool
 
 
-def decode_path(path):
+def decode_path(path: str):
     relative_path = '/'.join(path.split('/')[3:])
     des_path = root_dir + '/' + relative_path
     if os.path.exists(des_path):
@@ -49,9 +60,21 @@ def build_file_bytes(path):
             body += line
     return body
 
+def render(title: str, body: str):
+    return f"""
+<html>
+    <head>
+        <meta charset="utf-8"> 
+        <title>{title}</title>
+    </head>
+    <body>
+        <h1>{title}</h1>
+        <p>{body}</p>
+    </body>
+</html>
+"""
 
-def gen_html(root):
-    port = 8080
+def gen_page(root: str, port: int):
     heading = f'Directory listing for {root}'
     table = ''
     if os.path.exists(root):
@@ -70,23 +93,15 @@ def gen_html(root):
     else:
         raise NotImplementedError
 
-    return f"""<!DOCTYPE html>
-<html>
-<head> 
-<meta charset="utf-8"> 
-<title>Files</title> 
-</head> 
-<body>
-
-<h1>{heading}</h1>
+    return render("Files", f"""
+<h4>{heading}</h4>
 <hr>
 <ul>
 {table}
 </ul>
 <hr>
+""")
 
-</body>
-</html>"""
 
 
 def gen_txt(path):
@@ -114,11 +129,12 @@ def send_file(conn, path):
 
 class Request:
     # a simple request class containing method, url and headers
-    def __init__(self, method: str, url: str, headers: {str: str}, request_data: str):
+    def __init__(self, method: str, url: str, headers: {str: str}, request_data: str, body:str):
         self.method = method  # GET, POST, PUT, DELETE
         self.url = url  # e.g. /index.html
         self.headers = headers
         self.request_data = request_data
+        self.body = body
 
     @classmethod
     def from_socket(cls, sock: socket.socket) -> "Request":
@@ -131,7 +147,8 @@ class Request:
         request_lines = request_data.split("\r\n")
         request_line = request_lines[0]
         print(f"request line: {request_line}")
-        method, url, _ = request_line.split(" ")
+        method = request_line.split(" ")[0]
+        url = request_line.split(" ")[1]
 
         headers = {}
         for line in request_lines[1:]:
@@ -142,30 +159,31 @@ class Request:
             if len(parts) != 2:
                 break
             headers[parts[0].strip()] = parts[1].strip()
+        
+        content_length = int(headers.get("Content-Length"))
+        data_start = request_data.find("\r\n\r\n") + 4
+        body = request_data[data_start:data_start + content_length]
 
         print(f"request method: {method}")
         print(f"request url: {url}")
-        return cls(method, url, headers, request_data)
+        return cls(method, url, headers, request_data, body)
 
     def __repr__(self) -> str:
         # output request
         request = "{} {} HTTP/1.1\r\n".format(self.method, self.url)
         request += "\r\n".join("{}: {}".format(k, v) for k, v in self.headers.items())
         request += "\r\n\r\n"
+        request += self.request_data.split("\r\n\r\n", 1)[1]  # Append file data
         return request
 
-    def extract_data(self):
-        content_length = int(self.headers.get("Content-Length"))
-        data_start = self.request_data.find("\r\n\r\n") + 4
-        data = self.request_data[data_start:data_start + content_length]
-        return data
+    
 
 
 class Response:
     # a simple response class containing status code, headers and body
     def __init__(self):
         self.status_code = 200
-        self.body = b"Default body."
+        self.body = b"OK."
         self.headers = {"Connection": "keep-alive"}
         # The connection will be closed only when the client sends a "Connection: close" header.
 
@@ -223,7 +241,6 @@ class Response:
         response = self.generate_status_line() + '\r\n'
         response += "\r\n".join("{}: {}".format(k, v) for k, v in self.headers.items())
         response += "\r\n\r\n"
-        # response += self.body
         return response.encode("utf-8") + self.body
 
 
@@ -304,8 +321,8 @@ class HTTPServer:
         # Get the username and password from the Authorization header
         # As the info is encoded in base64, we need to decode it first
         base64_string = request.headers.get("Authorization").split(" ")[1]
-        base64_bytes = base64_string.encode("ascii")
-        authorization = base64.b64decode(base64_bytes).decode("ascii")
+        base64_bytes = base64_string.encode("utf-8")
+        authorization = base64.b64decode(base64_bytes).decode("utf-8")
         username, password = authorization.split(":")
         # Check if the username and password are valid
         if username in self.authorized_users and self.authorized_users[username] == password:
@@ -340,8 +357,8 @@ class HTTPServer:
         #     username_in_path = request.url.split("=")[-1].split("/")[0]
         #     print(f"username in path: {username_in_path}")
         #     base64_string = request.headers.get("Authorization").split(" ")[1]
-        #     base64_bytes = base64_string.encode("ascii")
-        #     authorization = base64.b64decode(base64_bytes).decode("ascii")
+        #     base64_bytes = base64_string.encode("utf-8")
+        #     authorization = base64.b64decode(base64_bytes).decode("utf-8")
         #     username, password = authorization.split(":")
         #     # print(f"username: {username}, username in path: {username_in_path}")
         #     if username != username_in_path or self.authorized_users[username] != password:
@@ -352,7 +369,7 @@ class HTTPServer:
         if os.path.isdir(path):
             if operation == "0" or "SUSTech-HTTP" not in request.url:
                 response.set_content_type(HTML)
-                response.set_strbody(gen_html(path))
+                response.set_strbody(gen_page(path, self.port))
             elif operation == "1":
                 # Response with the name of all items in list under the target directory
                 response.set_content_type(TEXT)
@@ -364,8 +381,70 @@ class HTTPServer:
             response.status_code = 404
             return
 
+    def handle_upload(self, response, request):
+        print("UPLOAD", "start")
+        # upload url: http://localhost:8080/upload?path=11912113/
+
+        # Check if the target directory exist
+        path = root_dir + '/' +  request.url.split("=")[-1].strip('/')  # root_dir = os.curdir + '/data'
+        if not os.path.isdir(path):
+            response.status_code = 404
+            return response
+
+        # Upload the file
+        # Get the file name
+        # filename = request.headers.get("Content-Disposition").split("=")[-1]
+        # filename = filename.replace('"', '')
+        # print("UPLOAD", f"Filename: {filename}")
+        # # Get the file content
+        # data = request.extract_data()
+        # # Store the file
+        # file_path = os.path.join(path, filename)
+        # file_data = self.rfile.read(int(self.headers.get('Content-Length')))
+
+        print(request.body)
+        print(request.request_data)
+        lines = request.body.split("\r\n")
+        flag = False # false means the headers stop
+        filename = None
+        content = b""
+        for line in lines:
+            if flag is False:
+                if line == '':
+                    flag = True
+                else:
+                    if line.startswith("Content-Disposition"):
+                        # this line contains information of file
+                        # e.g. Content-Disposition: form-data; name="firstfile"; filename="a.txt"
+                        filename = line.split("filename=")[1].strip('"')
+            else:
+                if line.startswith('-') or line == '':
+                    pass
+                else:
+                    print('read', line)
+                    print('add content', line.encode("utf-8"))
+                    content = content + line.encode("utf-8")
+        with open(f'{path}/{filename}', 'wb') as file:
+            file.write(content)
+            file.close()
+        return response
+
+
+    def handle_delete(self, response, request):
+        # delete url: http://localhost:8080/delete?path=/11912113/abc.py
+        # Check if the target file exist
+        path = root_dir + "/" + request.url.split("=")[-1].strip("/")
+        if not os.path.isfile(path):
+            response.status_code = 404
+            return 
+
+        # Delete the file
+        os.remove(path)
+        response.status_code = 200
+        return 
 
     def handle_post(self, response, request, client_socket):
+        # post = upload + delete
         if request.url.startswith("/upload?") or request.url.startswith("/delete?"):
             # Check if path is provided
             if "path=" not in request.url:
@@ -373,53 +452,40 @@ class HTTPServer:
                 return
 
             # Check if the user is valid
-            username_in_path = request.url.split("=")[-1].split("/")[0]
+            # handle all of the three situations
+            # ?path=client1 =/client1/ ?path=client1/ ?path=client1
+            # get client1
+            username_in_path = None
+            # 去掉前后的/
+            path = request.url.split("=")[-1].strip('/')
+            if '/' in path:
+                username_in_path = path.split('/')[0]
+            else:
+                username_in_path = path
             # path =  http://localhost:8080/upload?path=/11912113/
             base64_string = request.headers.get("Authorization").split(" ")[1]
-            base64_bytes = base64_string.encode("ascii")
-            authorization = base64.b64decode(base64_bytes).decode("ascii")
+            base64_bytes = base64_string.encode("utf-8")
+            authorization = base64.b64decode(base64_bytes).decode("utf-8")
             username_in_authorization, password = authorization.split(":")
+            # whether this user 可以上传文件到这个文件夹
             if username_in_authorization != username_in_path:
-                print(f"username in path: {username_in_path}")
-                print(f"username in authorization: {username_in_authorization}")
+                # e.g. current user: 123 but the path is /upload?path=/123
+                print("username in path", f"{username_in_path}")
+                print("username in authorization", f"{username_in_authorization}")
                 response.status_code = 403
                 return
+            
+
+            if request.url.startswith("/upload?"):
+                # this means the user would like to upload files
+                self.handle_upload(response, request)
+            else:
+                # delete file
+                self.handle_delete(response, request)
+                
         else:
             response.set_strbody("<h1>Other POST</h1>")
 
-
-    def handle_upload(self, response, request):
-        # upload url: http://localhost:8080/upload?path=/11912113/
-
-        # Check if the target directory exist
-        path = root_dir + request.url.split("=")[-1]  # root_dir = os.curdir + '/data'
-        if not os.path.isdir(path):
-            response.status_code = 404
-            return
-
-        # Upload the file
-        # Get the file name
-        filename = request.headers.get("Content-Disposition").split("=")[-1]
-        filename = filename.replace('"', '')
-        # Get the file content
-        data = request.extract_data()
-        # Store the file
-        file_path = os.path.join(path, filename)
-        with open(file_path, 'w') as file:
-            file.write(data)
-        return
-
-
-    def handle_delete(self, response, request):
-        # delete url: http://localhost:8080/delete?path=/11912113/abc.py
-        # Check if the target file exist
-        path = root_dir + request.url.split("=")[-1]
-        if not os.path.isfile(path):
-            response.status_code = 404
-            return
-
-        # Delete the file
-        os.remove(path)
 
 
 def shutdown(self):

@@ -1,1 +1,1 @@
-python3 server.py -i localhost -p 9000
+python3 server.py -i localhost -p 8080
