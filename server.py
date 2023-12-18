@@ -62,17 +62,42 @@ def build_file_bytes(path):
     return body
 
 # render html
-def render(title: str, body: str):
+def render(title: str, body: str, url: str):
     return f"""
 <html>
     <head>
         <meta charset="utf-8"> 
         <title>{title}</title>
+
     </head>
     <body>
         <h1>{title}</h1>
         <p>{body}</p>
-    </body>
+    </body>""" + """
+    <script>
+        function uploadFile() {
+        var fileInput = document.getElementById('file-input');
+        var file = fileInput.files[0];
+        var formData = new FormData();
+        formData.append('file', file);
+
+        $.ajax({
+            url: '"""+url+"""', // 替换为你的目标地址
+            type: 'POST',
+            data: formData,
+            processData: false,
+            contentType: false,
+            success: function(response) {
+            console.log('文件上传成功!');
+            // 在这里添加你的成功处理逻辑
+            },
+            error: function(xhr, status, error) {
+            console.error('文件上传失败:', error);
+            // 在这里添加你的错误处理逻辑
+            }
+        });
+        }
+    </script>
 </html>
 """
 
@@ -98,12 +123,16 @@ def gen_page(root: str, port: int):
 
     return render("Files", f"""
 <h4>{heading}</h4>
+
 <hr>
-<ul>
-{table}
-</ul>
+    <ul>
+        {table}
+    </ul>
 <hr>
-""")
+
+<input type="file" id="file-input">
+<button onclick="uploadFile()">上传</button>
+""", "")
 
 
 
@@ -163,12 +192,14 @@ class Request:
             if len(parts) != 2:
                 break
             headers[parts[0].strip()] = parts[1].strip()
-        
-        content_length = int(headers.get("Content-Length"))
-        # \r\n是用来分割header和body的
-        # http经典规定
-        data_start = request_data.find("\r\n\r\n") + 4
-        body = request_data[data_start:data_start + content_length]
+
+        body = ''
+        if 'Content-Length' in headers:
+            content_length = int(headers.get("Content-Length"))
+            # \r\n是用来分割header和body的
+            # http经典规定
+            data_start = request_data.find("\r\n\r\n") + 4
+            body = request_data[data_start:data_start + content_length]
 
         print(f"request method: {method}")
         print(f"request url: {url}")
