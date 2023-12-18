@@ -76,26 +76,26 @@ def render(title: str, body: str, url: str):
     </body>""" + """
     <script>
         function uploadFile() {
-        var fileInput = document.getElementById('file-input');
-        var file = fileInput.files[0];
-        var formData = new FormData();
-        formData.append('file', file);
+            var fileInput = document.getElementById('file-input');
+            var file = fileInput.files[0];
+            var formData = new FormData();
+            formData.append('file', file);
 
-        $.ajax({
-            url: '"""+url+"""', // 替换为你的目标地址
-            type: 'POST',
-            data: formData,
-            processData: false,
-            contentType: false,
-            success: function(response) {
-            console.log('文件上传成功!');
-            // 在这里添加你的成功处理逻辑
-            },
-            error: function(xhr, status, error) {
-            console.error('文件上传失败:', error);
-            // 在这里添加你的错误处理逻辑
-            }
-        });
+            $.ajax({
+                url: '"""+url+"""', // 替换为你的目标地址
+                type: 'POST',
+                data: formData,
+                processData: false,
+                contentType: false,
+                success: function(response) {
+                console.log('文件上传成功!');
+                // 在这里添加你的成功处理逻辑
+                },
+                error: function(xhr, status, error) {
+                console.error('文件上传失败:', error);
+                // 在这里添加你的错误处理逻辑
+                }
+            });
         }
     </script>
 </html>
@@ -116,8 +116,12 @@ def gen_page(root: str, port: int, url: str, enable: bool):
                 continue
             ref = cur_dir + f'/{file}'
             href = f'<a href="http://localhost:{port}/{ref.strip("/")}?SUSTech-HTTP=0">'
-            table += rf'  <li>{href}{file}' + (
-                '/' if os.path.isdir(os.path.join(root, file)) else '') + r'</a></li>' + '\n'
+            if enable:
+                table += rf'  <li>{href}{file}' + (
+                    '/' if os.path.isdir(os.path.join(root, file)) else '') + r'</a><button class="send-request">delete</button></li>' + '\n'
+            else:
+                table += rf'  <li>{href}{file}' + (
+                    '/' if os.path.isdir(os.path.join(root, file)) else '') + r'</a></li>' + '\n'
     else:
         raise NotImplementedError
     
