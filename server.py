@@ -102,7 +102,7 @@ def render(title: str, body: str, url: str):
 """
 
 # generate list page
-def gen_page(root: str, port: int):
+def gen_page(root: str, port: int, url: str, enable: bool):
     heading = f'Directory listing for {root}'
     table = ''
     if os.path.exists(root):
@@ -120,8 +120,9 @@ def gen_page(root: str, port: int):
                 '/' if os.path.isdir(os.path.join(root, file)) else '') + r'</a></li>' + '\n'
     else:
         raise NotImplementedError
-
-    return render("Files", f"""
+    
+    if enable:
+        return render("Files", f"""
 <h4>{heading}</h4>
 
 <hr>
@@ -132,7 +133,18 @@ def gen_page(root: str, port: int):
 
 <input type="file" id="file-input">
 <button onclick="uploadFile()">上传</button>
+""", url)
+    else:
+                return render("Files", f"""
+<h4>{heading}</h4>
+
+<hr>
+    <ul>
+        {table}
+    </ul>
+<hr>
 """, "")
+
 
 
 
@@ -405,11 +417,14 @@ class HTTPServer:
         #         response.status_code = 403
         #         return
 
+        enable = False
+
+
         operation = request.url.split("=")[-1]
         if os.path.isdir(path):
             if operation == "0" or "SUSTech-HTTP" not in request.url:
                 response.set_content_type(HTML)
-                response.set_strbody(gen_page(path, self.port))
+                response.set_strbody(gen_page(path, self.port, "http://localhost:8080/upload?path=", enable))
             elif operation == "1":
                 # Response with the name of all items in list under the target directory
                 response.set_content_type(TEXT)
