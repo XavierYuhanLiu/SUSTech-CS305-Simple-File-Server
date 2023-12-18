@@ -75,6 +75,29 @@ def render(title: str, body: str, url: str):
         <p>{body}</p>
     </body>""" + """
     <script>
+        $(document).ready(function() {
+            $('.send-request').on('click', function() {
+                var listItem = $(this).closest('li');
+                var itemText = listItem.find('span').text();
+
+                // 发送 HTTP 请求
+                $.ajax({
+                url: '""" + url + """', // 替换为你的目标地址
+                type: 'POST',
+                data: { item: itemText },
+                success: function(response) {
+                    console.log('请求发送成功!');
+                    // 在这里添加你的成功处理逻辑
+                },
+                error: function(xhr, status, error) {
+                    console.error('请求发送失败:', error);
+                    // 在这里添加你的错误处理逻辑
+                }
+                });
+            });
+        });
+
+
         function uploadFile() {
             var fileInput = document.getElementById('file-input');
             var file = fileInput.files[0];
