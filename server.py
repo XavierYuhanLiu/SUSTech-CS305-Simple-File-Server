@@ -7,6 +7,7 @@ import os
 import json
 import base64
 import time
+from rsa.key import newkeys
 
 # HTTP status codes
 status_codes = {
@@ -174,8 +175,6 @@ def gen_page(root: str, port: int, url: str, enable: bool):
 """, "")
 
 
-
-
 def gen_txt(path):
     # Response with the name of all items in list under the target directory
     # `["123.png", "666/", "abc.py", "favicon.ico"]` in this case.
@@ -201,12 +200,13 @@ def send_file(conn, path):
 
 class Request:
     # a simple request class containing method, url and headers
-    def __init__(self, method: str, url: str, headers: {str: str}, request_data: str, body:str):
+    def __init__(self, method: str, url: str, headers: {str: str}, request_data: str, body:str, type:str):
         self.method = method  # GET, POST, PUT, DELETE
         self.url = url  # e.g. /index.html
         self.headers = headers
         self.request_data = request_data
         self.body = body
+        self.type = type
 
     @classmethod
     def from_socket(cls, sock: socket.socket) -> "Request":
@@ -220,7 +220,7 @@ class Request:
         request_lines = request_data.split("\r\n")
         request_line = request_lines[0] # GET / HTTP/1.1 这种的
         print(f"request line: {request_line}")
-        method, url, _ = request_line.split(" ")
+        method, url, type = request_line.split(" ")
 
         headers = {}
         for line in request_lines[1:]:
@@ -244,7 +244,7 @@ class Request:
         print(f"request url: {url}")
 
         # return the final result
-        return cls(method, url, headers, request_data, body)
+        return cls(method, url, headers, request_data, body, type)
 
     def __repr__(self) -> str:
         # output request
@@ -334,6 +334,7 @@ class HTTPServer:
         }
         self.session = {}
         self.session_createdAt = {}
+        self.public_key, self.private_key = newkeys(2048)
 
     def start(self):
         self.socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -341,6 +342,8 @@ class HTTPServer:
         self.socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         self.socket.bind((self.host, self.port))
         self.socket.listen(5)  # Number of connections to queue
+
+        print("🥳Encryption Keys Generation Completed")
 
         print(f"Server is now listening on {self.host}: {self.port}")
         print("Press Ctrl+C to stop the server")
@@ -358,6 +361,9 @@ class HTTPServer:
         except KeyboardInterrupt:
             self.shutdown()
 
+    def encryption_handle(self, request, response):
+        return True
+
     def handle_client(self, client_socket):
         while True:
             request = Request.from_socket(client_socket)
@@ -368,50 +374,67 @@ class HTTPServer:
             response = Response()
             response.set_content_type(HTML)
 
-            session_flag = True # if session needs to be set
-
-            # check if the session is valid first
-            if request.headers.get("Cookie") is not None:
-                # get session key from session-id
-                session_id = request.headers.get("Cookie").split("=")[-1]
-                if session_id in self.session and session_id in self.session_createdAt and time.time() - self.session_createdAt[session_id] < 60 * 60 * 24:
-                    session_key = self.session[session_id]
-                    request.headers["Authorization"] = session_key
-                    session_flag = False
-
-            # Check if the request includes valid Authorization header
-            if request.headers.get("Authorization") is None:
-                # No Authorization header
-                response.status_code = 401
-            elif self.check_method_allowance(request) is False:
-                response.status_code = 405
-            elif self.check_authorization(request) is False:
-                # Invalid Authorization header: username and password not match
-                response.status_code = 401
+            if request.type.startswith("ENCRYPTION"):
+                # 自定义 encryption 协议
+                # 好孩子不要这么做，违法哟～
+                # 我认真的！
+                if self.encryption_handle(request, response, client_socket):
+                    self.auth_handle(request, response, client_socket)
             else:
-                if session_flag:
-                    # generate session id randomly
-                    session_id = str(os.urandom(24))
-                    self.session[session_id] = request.headers.get("Authorization")
-                    response.set_header("Set-Cookie", f"session-id={session_id}")
-                    self.session_createdAt[session_id] = time.time()
-                # print(f"authorized user: {request.headers.get('Authorization')}")
-                if request.method == "POST":
-                    self.handle_post(response, request, client_socket)
-                elif request.method == "GET":
-                    # Handle GET request
-                    self.handle_get(response, request)
-                elif request.method == "HEAD":
-                    # Handle HEAD request
-                    response.set_strbody("<h1>Hello World</h1>")
-                else:
-                    # Error handling
-                    response.status_code = 405
-            
-            client_socket.sendall(response.generate_response_bytes())
+                self.auth_handle(request, response, client_socket) 
+
             if request.headers.get("Connection") == "close":
                 client_socket.close()
                 break
+
+    def encryption_handle(self, request, response, client_socket):
+        # 这个部分处理encryption的过程
+        print("encryption 启动")
+        if request.url == "/public_key":
+            client_socket.sendall(str(self.public_key).encode('utf-8'))
+        return False
+
+    def auth_handle(self, request, response, client_socket):
+        session_flag = True # if session needs to be set
+
+        # check if the session is valid first
+        if request.headers.get("Cookie") is not None:
+            # get session key from session-id
+            session_id = request.headers.get("Cookie").split("=")[-1]
+            if session_id in self.session and session_id in self.session_createdAt and time.time() - self.session_createdAt[session_id] < 60 * 60 * 24:
+                session_key = self.session[session_id]
+                request.headers["Authorization"] = session_key
+                session_flag = False
+
+        # Check if the request includes valid Authorization header
+        if request.headers.get("Authorization") is None:
+            # No Authorization header
+            response.status_code = 401
+        elif self.check_method_allowance(request) is False:
+            response.status_code = 405
+        elif self.check_authorization(request) is False:
+            # Invalid Authorization header: username and password not match
+            response.status_code = 401
+        else:
+            if session_flag:
+                # generate session id randomly
+                session_id = str(os.urandom(24))
+                self.session[session_id] = request.headers.get("Authorization")
+                response.set_header("Set-Cookie", f"session-id={session_id}")
+                self.session_createdAt[session_id] = time.time()
+            # print(f"authorized user: {request.headers.get('Authorization')}")
+            if request.method == "POST":
+                self.handle_post(response, request, client_socket)
+            elif request.method == "GET":
+                # Handle GET request
+                self.handle_get(response, request)
+            elif request.method == "HEAD":
+                # Handle HEAD request
+                response.set_strbody("<h1>Hello World</h1>")
+            else:
+                # Error handling
+                response.status_code = 405
+        client_socket.sendall(response.generate_response_bytes())
 
 
     def check_authorization(self, request):
@@ -585,5 +608,6 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     # Start the server and pass the ip and port
+    print("🚀Start Encryption Keys Generation")
     server = HTTPServer(args.ip, args.port)
     server.start()
