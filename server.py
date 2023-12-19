@@ -333,6 +333,7 @@ class HTTPServer:
             "client2": "123",
             "client3": "123"
         }
+        self.session = {}
 
     def start(self):
         self.socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -367,6 +368,18 @@ class HTTPServer:
             response = Response()
             response.set_content_type(HTML)
 
+            session_flag = True # if session needs to be set
+
+            # check if the session is valid first
+            if request.headers.get("Cookie") is not None:
+                # get session key from session-id
+                session_id = request.headers.get("Cookie").split("=")[-1]
+                print("session id", session_id)
+                if session_id in self.session:
+                    session_key = self.session[session_id]
+                    request.headers["Authorization"] = session_key
+                    session_flag = False
+
             # Check if the request includes valid Authorization header
             if request.headers.get("Authorization") is None:
                 # No Authorization header
@@ -377,6 +390,11 @@ class HTTPServer:
                 # Invalid Authorization header: username and password not match
                 response.status_code = 401
             else:
+                if session_flag:
+                    # generate session id randomly
+                    session_id = str(os.urandom(24))
+                    self.session[session_id] = request.headers.get("Authorization")
+                    response.set_header("Set-Cookie", f"session-id={session_id}")
                 # print(f"authorized user: {request.headers.get('Authorization')}")
                 if request.method == "POST":
                     self.handle_post(response, request, client_socket)
@@ -389,6 +407,7 @@ class HTTPServer:
                 else:
                     # Error handling
                     response.status_code = 405
+            
             client_socket.sendall(response.generate_response_bytes())
             if request.headers.get("Connection") == "close":
                 client_socket.close()
