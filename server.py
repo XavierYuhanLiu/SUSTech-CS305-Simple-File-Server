@@ -7,7 +7,11 @@ import os
 import json
 import base64
 import time
-from rsa.key import newkeys
+from cryptography.hazmat.backends import default_backend
+from cryptography.hazmat.primitives import serialization, hashes
+from cryptography.hazmat.primitives.asymmetric import rsa, padding
+from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
+from cryptography.hazmat.primitives import padding as pad
 
 # HTTP status codes
 status_codes = {
@@ -334,7 +338,14 @@ class HTTPServer:
         }
         self.session = {}
         self.session_createdAt = {}
-        self.public_key, self.private_key = newkeys(2048)
+        self.private_key = rsa.generate_private_key(
+            public_exponent=65537,
+            key_size=2048,
+            backend=default_backend()
+        )
+        self.public_key = self.private_key.public_key()
+        self.client_symmetric_key = {}
+        self.client_ivs = {}
 
     def start(self):
         self.socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -359,10 +370,7 @@ class HTTPServer:
                 # set daemon so main thread can exit when receives ctrl-c
                 client_thread.start()
         except KeyboardInterrupt:
-            self.shutdown()
-
-    def encryption_handle(self, request, response):
-        return True
+            exit()
 
     def handle_client(self, client_socket):
         while True:
@@ -389,10 +397,77 @@ class HTTPServer:
 
     def encryption_handle(self, request, response, client_socket):
         # 这个部分处理encryption的过程
-        print("encryption 启动")
+        print("encryption handle")
         if request.url == "/public_key":
-            client_socket.sendall(str(self.public_key).encode('utf-8'))
-        return False
+            client_socket.sendall(self.public_key.public_bytes(
+                encoding=serialization.Encoding.PEM,
+                format=serialization.PublicFormat.SubjectPublicKeyInfo
+            ))
+            return False
+        elif request.url == "/encrypted_symmetric_key":
+            # reivce encrypted symmetric key
+            encrypted_symmetric_key = request.headers.get("encrypted_symmetric_key")
+            encrypted_symmetric_key = base64.b64decode(encrypted_symmetric_key)
+            # decrypt symmetric key
+            print("client encrypted symmetric key", encrypted_symmetric_key)
+            symmetric_key = self.private_key.decrypt(
+                encrypted_symmetric_key,
+                padding.OAEP(
+                    mgf=padding.MGF1(algorithm=hashes.SHA256()),
+                    algorithm=hashes.SHA256(),
+                    label=None
+                )
+            )
+            # store symmetric key
+            self.client_symmetric_key[client_socket] = symmetric_key
+            print("client symmetric key", symmetric_key)
+            # send encrypted response
+            response.set_strbody("encrypted response")
+            client_socket.sendall(response.generate_response_bytes())
+            return False
+        elif request.url == "/encrypted_iv":
+            # receive encrypted iv
+            encrypted_iv = request.headers.get("encrypted_iv")
+            encrypted_iv = base64.b64decode(encrypted_iv)
+            # decrypt iv
+            iv = self.private_key.decrypt(
+                encrypted_iv,
+                padding.OAEP(
+                    mgf=padding.MGF1(algorithm=hashes.SHA256()),
+                    algorithm=hashes.SHA256(),
+                    label=None
+                )
+            )
+            # store iv
+            self.client_ivs[client_socket] = iv
+            print("client iv", iv)
+            # send encrypted response
+            response.set_strbody("encrypted response")
+            client_socket.sendall(response.generate_response_bytes())
+            return False
+        else:
+            if client_socket not in self.client_symmetric_key or client_socket not in self.client_ivs:
+                # not encrypted symmetric key
+                response.status_code = 401
+                client_socket.sendall(response.generate_response_bytes())
+                return False
+            # use symmetric key to decrypt request body
+            symmetric_key = self.client_symmetric_key[client_socket]
+            iv = self.client_ivs[client_socket]
+            body = request.body
+            print("symmetric key", symmetric_key)
+            # decrypt body
+            cipher = Cipher(algorithms.AES(symmetric_key), modes.CBC(iv), backend=default_backend())
+            decryptor = cipher.decryptor()
+            body = decryptor.update(base64.b64decode(body.encode('utf-8'))) + decryptor.finalize()
+            # update body
+            # request.body = base64.b64encode(body).decode('utf-8')
+            block_size = cipher.algorithm.block_size // 8
+            unpadder = pad.PKCS7(block_size * 8).unpadder()
+            request.body = unpadder.update(body) + unpadder.finalize()
+            request.body = request.body.decode('utf-8')
+            # print("decrypted body", request.body)
+            return True
 
     def auth_handle(self, request, response, client_socket):
         session_flag = True # if session needs to be set
@@ -498,8 +573,9 @@ class HTTPServer:
             response.status_code = 404
             return 
 
-        print(request.body)
-        print(request.request_data)
+        # print('request body', request.body)
+        # print('request data', request.request_data)
+
         # 格式如下
 
         # ------WebKitFormBoundary7MA4YWxkTrZu0gW\r\n
@@ -524,7 +600,10 @@ class HTTPServer:
                     # e.g. Content-Disposition: form-data; name="firstfile"; filename="a.txt"
                     filename = line.split("filename=")[1].strip('"')
         body_end = body.find(boundary)
-        content = body[:body_end-4] # -4去掉最后的\r\n\r\n
+        content = body[:body_end-2]
+
+        print("filename", filename)
+        print("content", content)
 
         with open(f'{path}/{filename}', 'wb') as file:
             file.write(content.encode("utf-8"))
