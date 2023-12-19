@@ -6,6 +6,7 @@ import threading
 import os
 import json
 import base64
+import time
 
 # HTTP status codes
 status_codes = {
@@ -253,8 +254,6 @@ class Request:
         request += self.request_data.split("\r\n\r\n", 1)[1]  # Append file data
         return request
 
-    
-
 
 class Response:
     # a simple response class containing status code, headers and body
@@ -334,6 +333,7 @@ class HTTPServer:
             "client3": "123"
         }
         self.session = {}
+        self.session_createdAt = {}
 
     def start(self):
         self.socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -374,8 +374,7 @@ class HTTPServer:
             if request.headers.get("Cookie") is not None:
                 # get session key from session-id
                 session_id = request.headers.get("Cookie").split("=")[-1]
-                print("session id", session_id)
-                if session_id in self.session:
+                if session_id in self.session and session_id in self.session_createdAt and time.time() - self.session_createdAt[session_id] < 60 * 60 * 24:
                     session_key = self.session[session_id]
                     request.headers["Authorization"] = session_key
                     session_flag = False
@@ -395,6 +394,7 @@ class HTTPServer:
                     session_id = str(os.urandom(24))
                     self.session[session_id] = request.headers.get("Authorization")
                     response.set_header("Set-Cookie", f"session-id={session_id}")
+                    self.session_createdAt[session_id] = time.time()
                 # print(f"authorized user: {request.headers.get('Authorization')}")
                 if request.method == "POST":
                     self.handle_post(response, request, client_socket)
@@ -445,22 +445,6 @@ class HTTPServer:
         # If the requested target is a file, the SUSTech-HTTP parameter will be ignored
         relative_path = request.url.split("?")[0]
         path = root_dir + relative_path
-        # if "SUSTech-HTTP" not in request.url:
-        #     response.status_code = 400
-        #     return
-
-        # Check if the user is valid
-        # if relative_path != "/":
-        #     username_in_path = request.url.split("=")[-1].split("/")[0]
-        #     print(f"username in path: {username_in_path}")
-        #     base64_string = request.headers.get("Authorization").split(" ")[1]
-        #     base64_bytes = base64_string.encode("utf-8")
-        #     authorization = base64.b64decode(base64_bytes).decode("utf-8")
-        #     username, password = authorization.split(":")
-        #     # print(f"username: {username}, username in path: {username_in_path}")
-        #     if username != username_in_path or self.authorized_users[username] != password:
-        #         response.status_code = 403
-        #         return
 
         enable = False
 
