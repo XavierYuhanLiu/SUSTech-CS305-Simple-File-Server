@@ -266,6 +266,9 @@ class Response:
         self.body = b"OK."
         self.headers = {"Connection": "keep-alive"}
         # The connection will be closed only when the client sends a "Connection: close" header.
+        self.encryption = False
+        self.symmetric_key = None
+        self.iv = None
 
     def generate_status_line(self):
         # 规定啊HTTp
@@ -276,6 +279,15 @@ class Response:
         Set the body from a str content.
         :param body: In str format.
         """
+        if self.encryption:
+            # use symmetric key to encrypt body
+            # encrypt body
+            cipher = Cipher(algorithms.AES(self.symmetric_key), modes.CBC(self.iv), backend=default_backend())
+            encryptor = cipher.encryptor()
+            block_size = cipher.algorithm.block_size // 8
+            padder = pad.PKCS7(block_size * 8).padder()
+            body = padder.update(body.encode('utf-8')) + padder.finalize()
+            body = base64.b64encode(encryptor.update(body) + encryptor.finalize()).decode('utf-8')
         self.body = body.encode("utf-8")
 
     def set_bbody(self, body):
@@ -387,6 +399,10 @@ class HTTPServer:
                 # 好孩子不要这么做，违法哟～
                 # 我认真的！
                 if self.encryption_handle(request, response, client_socket):
+                    response.encryption = True
+                    response.symmetric_key = self.client_symmetric_key[client_socket]
+                    response.iv = self.client_ivs[client_socket]
+                    response.set_strbody("encrypted response")
                     self.auth_handle(request, response, client_socket)
             else:
                 self.auth_handle(request, response, client_socket) 
