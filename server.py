@@ -289,6 +289,7 @@ class Response:
             body = padder.update(body.encode('utf-8')) + padder.finalize()
             body = base64.b64encode(encryptor.update(body) + encryptor.finalize()).decode('utf-8')
         self.body = body.encode("utf-8")
+        print("encrypted body", self.body)
 
     def set_bbody(self, body):
         """
