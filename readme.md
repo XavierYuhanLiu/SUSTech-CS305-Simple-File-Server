@@ -22,7 +22,7 @@ SUSTech-HTTP=1 means \**Blank*\*
 
 ## POST
 Here are two examples of upload and delete. Makesure argument path correspond to the username in key *Authorization*.  
-UPLOAD url:  
+UPLOAD url:
 http://localhost:8080/upload?path=/11911922/  
 When uploading, the content of the file will be in form-data in request body.
 
