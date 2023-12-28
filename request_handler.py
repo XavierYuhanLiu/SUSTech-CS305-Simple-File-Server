@@ -12,14 +12,15 @@ HTML = "text/html"
 FILE = "application/octet-stream"
 TEXT = "text/plain"
 
+
 def is_method_allowed(url, method):
-    if url.startswith("/upload?") or url.startswith("/delete?"):
-        if method != "POST":
-            return False
-    elif url.startswith("/") and url != "/":
-        if method != "GET":
+    if url.startswith('/upload?') or url.startswith('/delete?'):
+        return method == 'POST'
+    elif url.startswith('/') and url != '/':
+        if method != 'GET' and method != 'HEAD':
             return False
     return True
+
 
 def gen_txt(path):
     # Response with the name of all items in list under the target directory
@@ -30,7 +31,12 @@ def gen_txt(path):
     return items
 
 
-def file2bytes(path):
+def file2bytes(path: str) -> bytes:
+    """
+    Convert a file into a bytes object.
+    :param path: Path to the file
+    :return: Binary content of the file
+    """
     body = b''
     with open(path, 'rb') as f:
         for line in f:
@@ -58,21 +64,26 @@ class RequestHandler:
             #     self.auth_handle(request.headers, response)
             pass
         else:
-            # Check method, 405 if failure
+            # Whether the method is with a proper url, 405 if not
             if not is_method_allowed(self.request.url, self.request.method):
                 return get_response_by_error_code(405)
 
+            # Authentication part
             auth_core = self.server.auth_core
             auth_res = auth_core.authenticate_headers(self.request.headers)
+            # Pass
             if auth_res == 200:
                 self.response.status_code = 200
+            # Unauthorized
             elif auth_res == 401:
                 return get_response_by_error_code(401)
+            # Pass, given a new session-id
             else:
                 # Auth_res is the new session_id
                 self.response.status_code = 200
                 self.response.set_header('Set-Cookie', f'session-id={auth_res}')
 
+        # Handle the request corresponding to its method
         method = self.request.method
         if method == 'POST':
             self.post()
@@ -82,7 +93,6 @@ class RequestHandler:
             self.head()
         else:
             return get_response_by_error_code(405)
-
         return self.response
 
     def post(self):
@@ -113,6 +123,7 @@ class RequestHandler:
                 self.delete(path)
         else:
             self.response.set_strbody('<h1>Other POST</h1>')
+        self.response.set_content_length()
 
     def get(self):
         # http://localhost:8080/[access_path]?SUSTech-HTTP=[01]
@@ -122,7 +133,7 @@ class RequestHandler:
         enable = False
 
         relative_path, kargs = extract_url_and_args(self.request.url)
-        path = root_dir + relative_path
+        path = root_dir + '/' + relative_path.strip('/')
         if os.path.isdir(path):
             if "SUSTech-HTTP" not in kargs or kargs["SUSTech-HTTP"] == '0':
                 self.response.set_content_type(HTML)
@@ -136,12 +147,15 @@ class RequestHandler:
             self.response.set_bbody(file2bytes(path))
         else:
             self.response = get_response_by_error_code(404)
+        self.response.set_content_length()
 
     def head(self):
-        self.response.set_strbody('<h1>Hello World</h1>')
+        self.get()
+        self.response.set_bbody(b'')
+
 
     def upload(self, url):
-        print('UPLOAD START')
+        print('START UPLOADING')
         # upload url example: http://localhost:8080/upload?path=clientx/
 
         path = root_dir + '/' + url
@@ -161,12 +175,15 @@ class RequestHandler:
         # 其中------WebKitFormBoundary7MA4YWxkTrZu0gW是boundary，在request的header中
         # Content-Disposition: form-data; name="firstfile"; filename="a.txt"中的filename是文件名
         # \r\n\r\n之后的是文件内容, 即123\r\n
+        # Warning: this form can contain multiple parts, please do NOT assume there are only TWO boundaries.
 
         # Get the boundary
         boundary = get_boundary(self.request.headers['Content-Type'])
         print('The boundary of the form is: ', boundary)
+        muti_parts = extract_every_part(self.request.body, boundary)
+        print(f'This form contains {len(muti_parts)} file(s) in total.')
         # Extract every part, then extract the head and body, then write files.
-        for part in extract_every_part(self.request.body, boundary):
+        for part in muti_parts:
             headers, body = extract_from_part(part)
             if 'Content-Disposition' in headers:
                 filename = headers['Content-Disposition'].split("filename=")[1].strip('"')
@@ -175,7 +192,11 @@ class RequestHandler:
 
             with open(f'{path}/{filename}', 'wb') as f:
                 f.write(body)
+                print(f'File [{filename}] uploaded successfully.')
                 f.close()
+                continue
+            print(f'Oops fails to upload file [{filename}].')
+        print()
 
     def delete(self, url):
         # delete url: http://localhost:8080/delete?path=/clientx/samplefile

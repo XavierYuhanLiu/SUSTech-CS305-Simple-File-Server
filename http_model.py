@@ -8,8 +8,8 @@ from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
 from cryptography.hazmat.primitives import padding as pad
 
 
-def build_non_body(before_body: str):
-    lines = before_body.split('\r\n')
+def build_head(head: str):
+    lines = head.split('\r\n')
     method, url, http_type = lines[0].split(' ')
     headers = {}
     for header in lines[1:]:
@@ -40,24 +40,25 @@ class Request:
     @classmethod
     def from_socket(cls, sock: socket.socket) -> "Request":
         # First we try to extract the data before the body part
+        # We try to extract the first 1024 bytes. In most cases, head will not exceed 1024 bytes.
+        # In this project, it is mandatory that the head(including\r\n\r\n) must not exceed 1024.
         data = sock.recv(1024)
-        while data == b'':
-            try:
-                data = sock.recv(1024)
-            except ConnectionResetError:
-                pass
+        if data == b'':
+            # That means the connection is about to close.
+            return None
         # Then divide it into headers and the partial body
-        before_body_part, partial_body = data.split(b'\r\n\r\n', 1)
-
-        before_body_part = before_body_part.decode('utf-8')
-        print('What we got for before body part: ', before_body_part)
-        method, url, http_type, headers = build_non_body(before_body_part)
+        head_part, partial_body = data.split(b'\r\n\r\n', 1)
+        head_part = head_part.decode('utf-8')
+        print('--Request(Ignored the body for POST):')
+        print(head_part)
+        print('--EOF-Request--\n')
+        body = partial_body
 
         # If the method is POST, the content length may exceed 1024, we need to obtain the remaining part.
         # Otherwise, partial body is the whole body, it can be empty
-        body = partial_body
+        method, url, http_type, headers = build_head(head_part)
         if method == 'POST':
-            # Then we complete the remaining body
+            # Keep receiving data to complete the body
             unreceived_data_bytes = int(headers['Content-Length']) - len(partial_body)
             while unreceived_data_bytes > 0:
                 body += sock.recv(512)
@@ -123,9 +124,10 @@ class Response:
             self.set_unauthorized()
         elif self.status_code in (400, 403, 404, 405, 416, 502, 503):
             self.set_strbody("<h1>" + status_codes[self.status_code] + "</h1>")
-
-    def generate_response_bytes(self):
+    def set_content_length(self):
         self.set_header('Content-Length', len(self.body))
+
+    def to_bytes(self):
         head = self.generate_status_line()
         head += "\r\n".join("{}: {}".format(k, v) for k, v in self.headers.items())
         head += "\r\n\r\n"
@@ -136,4 +138,9 @@ def get_response_by_error_code(code: int) -> Response:
     response = Response()
     response.status_code = code
     response.generate_error_page()
+    return response
+
+
+def get_response_200() -> Response:
+    response = Response()
     return response

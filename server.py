@@ -13,6 +13,8 @@ from cryptography.hazmat.primitives.asymmetric import rsa, padding
 from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
 from cryptography.hazmat.primitives import padding as pad
 
+from dev import test
+
 
 class HTTPServer:
     def __init__(self, host, port):
@@ -43,12 +45,12 @@ class HTTPServer:
 
         print(f"Server is now listening on {self.host}: {self.port}")
         print("Press Ctrl+C to stop the server")
-        print('-------------------------------\n')
+        print('-------------------------------')
 
         try:
             while not self.shutdown_flag.is_set():
-                client_socket, client_address = self.socket.accept()
-                print(f"Client connected {client_address[0]}:{client_address[1]}")
+                client_socket, _ = self.socket.accept()
+                print(f"Client {client_socket.getpeername()} connected.\n")
                 client_thread = threading.Thread(
                     target=self.handle_client, args=(client_socket,)
                 )
@@ -58,22 +60,25 @@ class HTTPServer:
         except KeyboardInterrupt:
             exit()
 
-    def handle_client(self, client_socket):
+    def handle_client(self, client_socket: socket.socket):
         while True:
-            request = Request.from_socket(client_socket)
-            if request is None:
-                client_socket.close()
-                break
-            print('-----------------------')
-            request.info()
-            print('-----------------------')
-            handler = RequestHandler(self, request)
-            response = handler.handle()
-
-            client_socket.sendall(response.generate_response_bytes())
-            if request.headers.get("Connection") == "close":
-                client_socket.close()
-                break
+            try:
+                request = Request.from_socket(client_socket)
+                if request is None:
+                    client_socket.close()
+                    return
+                handler = RequestHandler(self, request)
+                response = handler.handle()
+                res_bytes = response.to_bytes()
+                print('--Response:')
+                print(res_bytes.decode('utf-8'))
+                print('--EOF-Response--\n')
+                client_socket.sendall(res_bytes)
+                if 'Connection' in request.headers and request.headers['Connection'] == 'close':
+                    client_socket.close()
+                    return
+            except ConnectionResetError:
+                return
 
     def encryption_handle(self, request, response, client_socket):
         # 这个部分处理encryption的过程
