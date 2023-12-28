@@ -1,7 +1,7 @@
 import socket
 import base64
 
-from util import status_codes, display_some
+from models.util import status_codes, display_some
 
 from cryptography.hazmat.backends import default_backend
 from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes

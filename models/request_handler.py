@@ -1,9 +1,9 @@
 import os
 
-from code_template import render_page
-from http_model import Response, get_response_by_error_code
-from util import extract_url_and_args, get_boundary, extract_every_part, extract_from_part
-from auth_core import extract_usr_pass
+from models.code_template import render_page
+from models.http_model import Response, get_response_by_error_code
+from models.util import extract_url_and_args, get_boundary, extract_every_part, extract_from_part
+from models.auth_core import extract_usr_pass
 
 
 root_dir = os.curdir + '/data'
