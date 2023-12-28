@@ -14,6 +14,7 @@ from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
 from cryptography.hazmat.primitives import padding as pad
 
 from dev import test
+from util import display_some
 
 
 class HTTPServer:
@@ -42,7 +43,6 @@ class HTTPServer:
         self.socket.listen(5)  # Number of connections to queue
         print('-------------------------------')
         print("🥳Encryption Keys Generation Completed")
-
         print(f"Server is now listening on {self.host}: {self.port}")
         print("Press Ctrl+C to stop the server")
         print('-------------------------------')
@@ -71,13 +71,13 @@ class HTTPServer:
                 response = handler.handle()
                 res_bytes = response.to_bytes()
                 print('--Response:')
-                print(res_bytes.decode('utf-8'))
+                display_some(res_bytes)
                 print('--EOF-Response--\n')
                 client_socket.sendall(res_bytes)
                 if 'Connection' in request.headers and request.headers['Connection'] == 'close':
                     client_socket.close()
                     return
-            except ConnectionResetError:
+            except Exception:
                 return
 
     def encryption_handle(self, request, response, client_socket):

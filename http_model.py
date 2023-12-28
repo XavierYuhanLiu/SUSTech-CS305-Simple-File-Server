@@ -1,14 +1,19 @@
 import socket
 import base64
 
-from util import status_codes, write_data
+from util import status_codes, display_some
 
 from cryptography.hazmat.backends import default_backend
 from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
 from cryptography.hazmat.primitives import padding as pad
 
 
-def build_head(head: str):
+def build_head(head: str) -> list[str, str, str, dict]:
+    """
+    Extract method, url, http_type and headers from the head.
+    :param head: The head of an http request
+    :return: Method, url, http_type and headers
+    """
     lines = head.split('\r\n')
     method, url, http_type = lines[0].split(' ')
     headers = {}
@@ -24,37 +29,29 @@ def build_head(head: str):
 class Request:
     # a simple request class containing method, url and headers
     def __init__(self, method: str, url: str, headers: {str: str}, body: bytes, http_type: str):
-        self.method = method  # GET, POST, PUT, DELETE
+        self.method = method  # GET, POST, HEAD
         self.url = url  # e.g. /index.html
         self.headers = headers
         self.body = body  # In BINARY
         self.http_type = http_type  # idk why we use this
 
-    def info(self):
-        print(f"request method: {self.method}")
-        print(f"request url: {self.url}")
-        # print(f'body: {self.body}')
-        for k, v in self.headers.items():
-            print(f'{k}: {v}')
-
     @classmethod
     def from_socket(cls, sock: socket.socket) -> "Request":
         # First we try to extract the data before the body part
-        # We try to extract the first 1024 bytes. In most cases, head will not exceed 1024 bytes.
-        # In this project, it is mandatory that the head(including\r\n\r\n) must not exceed 1024.
-        data = sock.recv(1024)
+        # We try to extract the first 1024 bytes. In most cases, head will not exceed 4096 bytes.
+        # In this project, it is mandatory that the head(including\r\n\r\n) must not exceed 4096.
+        data = sock.recv(4096)
         if data == b'':
             # That means the connection is about to close.
             return None
         # Then divide it into headers and the partial body
-        head_part, partial_body = data.split(b'\r\n\r\n', 1)
+        parts = data.split(b'\r\n\r\n', 1)
+        head_part = parts[0]
+        partial_body = b'' if len(parts) == 1 else parts[1]
         head_part = head_part.decode('utf-8')
-        print('--Request(Ignored the body for POST):')
-        print(head_part)
-        print('--EOF-Request--\n')
         body = partial_body
 
-        # If the method is POST, the content length may exceed 1024, we need to obtain the remaining part.
+        # If the method is POST, the content length may exceed 4096, we need to obtain the remaining part.
         # Otherwise, partial body is the whole body, it can be empty
         method, url, http_type, headers = build_head(head_part)
         if method == 'POST':
@@ -66,7 +63,10 @@ class Request:
         else:
             # do nothing.
             pass
-
+        print('--Request:')
+        print(head_part)
+        display_some(body)
+        print('--EOF-Request--\n')
         return cls(method, url, headers, body, http_type)
 
 
@@ -124,8 +124,12 @@ class Response:
             self.set_unauthorized()
         elif self.status_code in (400, 403, 404, 405, 416, 502, 503):
             self.set_strbody("<h1>" + status_codes[self.status_code] + "</h1>")
-    def set_content_length(self):
-        self.set_header('Content-Length', len(self.body))
+
+    def build_length_or_chunked(self):
+        if 'Transfer-Encoding' in self.headers and self.headers['Transfer-Encoding'] == 'chunked':
+            pass
+        else:
+            self.set_header('Content-Length', len(self.body))
 
     def to_bytes(self):
         head = self.generate_status_line()

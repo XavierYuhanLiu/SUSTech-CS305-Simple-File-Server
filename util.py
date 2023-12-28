@@ -25,13 +25,20 @@ class bcolors:
     UNDERLINE = '\033[4m'
 
 
-def write_data(data: bytes):
-    lines = data.split(b'\r\n')
-    with open('log', 'wb') as f:
-        f.write(data)
+def display_some(content):
+    """Display the content, if the length exceeds 1024, we'll just display the first 1024 bytes."""
+    if len(content) > 1024:
+        print(content[:1024])
+        print('...')
+    else:
+        print(content)
 
 
 def extract_url_and_args(url: str):
+    """Get url and args from GET request.
+
+    For example, GET /some_url?user=abc&pass=123 will return some_url and {user: abc, pass: 123}
+    """
     # For example, GET /{some_url}?user=abc&pass={123}
     parts = url.split('?')
     if len(parts) == 1:
@@ -47,10 +54,13 @@ def extract_url_and_args(url: str):
         return parts[0], args_dict
 
 
-def extract_every_part(body: bytes, boundary:str):
+def extract_every_part(body: bytes, boundary:str) -> list[bytes]:
+    """In a form body, there may be several parts seperated by the boundary.
+
+    This method returns a list containing every part.
+    """
     lines = body.split(b'\r\n')
     boundary_idxs = [i for i in range(len(lines)) if lines[i].find(boundary.encode('utf-8')) != -1]
-    print(boundary_idxs)
     all_parts = []
     for i in range(len(boundary_idxs) - 1):
         all_parts.append([lines[j] for j in range(boundary_idxs[i] + 1, boundary_idxs[i + 1])])
@@ -58,7 +68,8 @@ def extract_every_part(body: bytes, boundary:str):
     return all_parts
 
 
-def extract_from_part(part: bytes):
+def extract_from_part(part: bytes) -> list[dict, bytes]:
+    """In each part, we get the body and non-body part."""
     non_body, body = part.split(b'\r\n\r\n', 1)
     lines = non_body.split(b'\r\n')
     headers = {}
@@ -69,5 +80,6 @@ def extract_from_part(part: bytes):
 
 
 def get_boundary(content_type: str):
+    """Extract boundary from a string."""
     idx = content_type.find('boundary=')
     return content_type[idx + 9:]

@@ -3,7 +3,11 @@ import time
 import base64
 
 
-def extract_usr_pass(base64_str):
+def extract_usr_pass(base64_str) -> list[str, str]:
+    """
+    Extract username and password from a base64 string.
+    :return:
+    """
     base64_bytes = base64_str.encode("utf-8")
     usr2pass = base64.b64decode(base64_bytes).decode("utf-8")
     return usr2pass.split(":")
@@ -18,9 +22,15 @@ class AuthCore:
         }
         self.session = {}
         self.session_createdAt = {}
+        # One day
         self.cookie_duration = 60 * 60 * 24
 
     def is_valid_cookie(self, session_id):
+        """
+        Check whether the cookie expires(one day).
+        :param session_id:
+        :return:
+        """
         return session_id in self.session \
             and session_id in self.session_createdAt \
             and time.time() - self.session_createdAt[session_id] < self.cookie_duration

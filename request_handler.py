@@ -1,13 +1,14 @@
 import os
 
 from code_template import render_page
-from http_model import Request, Response, get_response_by_error_code
+from http_model import Response, get_response_by_error_code
 from util import extract_url_and_args, get_boundary, extract_every_part, extract_from_part
 from auth_core import extract_usr_pass
 
 
 root_dir = os.curdir + '/data'
 
+MEGABYTE = 1024 * 1024
 HTML = "text/html"
 FILE = "application/octet-stream"
 TEXT = "text/plain"
@@ -39,8 +40,27 @@ def file2bytes(path: str) -> bytes:
     """
     body = b''
     with open(path, 'rb') as f:
-        for line in f:
-            body += line
+        while True:
+            some_bytes = f.read(64 * MEGABYTE)
+            if not some_bytes:
+                break
+            body += some_bytes
+    return body
+
+
+def file2chunked_bytes(path: str) -> bytes:
+    # start = time.time()
+    body = b''
+    # chunk_size = 512
+    with open(path, 'rb') as f:
+        while True:
+            some_bytes = f.read(64 * MEGABYTE)
+            if not some_bytes:
+                break
+            body += f'{len(some_bytes):X}\r\n'.encode('utf-8') + some_bytes + b'\r\n'
+    body += b'0\r\n\r\n'
+    # end = time.time()
+    # print(end - start)
     return body
 
 
@@ -50,6 +70,7 @@ class RequestHandler:
         self.request = request
         self.response = Response()
         self.response.set_content_type(HTML)
+        self.chunked = False
 
     def handle(self):
         if self.request.http_type.startswith('ENCRYPTION'):
@@ -123,13 +144,16 @@ class RequestHandler:
                 self.delete(path)
         else:
             self.response.set_strbody('<h1>Other POST</h1>')
-        self.response.set_content_length()
+        self.response.build_length_or_chunked()
 
     def get(self):
         # http://localhost:8080/[access_path]?SUSTech-HTTP=[01]
         # access_path is the relative path under the /data/ folder
-        # If the requested target is a folder, the SUSTech-HTTP parameter is OPTIONAL
-        # If the requested target is a file, the SUSTech-HTTP parameter will be ignored
+        # If the requested target is a directory, parameter 'SUSTech-HTTP' will affect the display behavior
+        # Parameter 'chunked' will be ignored
+
+        # If the requested target is a file, parameter 'SUSTech-HTTP' will be ignored
+        # Parameter 'chunked' decides whether to chunk the data
         enable = False
 
         relative_path, kargs = extract_url_and_args(self.request.url)
@@ -144,15 +168,18 @@ class RequestHandler:
                 self.response.set_strbody(gen_txt(path))
         elif os.path.isfile(path):
             self.response.set_content_type(FILE)
-            self.response.set_bbody(file2bytes(path))
+            if 'chunked' in kargs and kargs['chunked'] == '1':
+                self.response.set_bbody(file2chunked_bytes(path))
+                self.response.set_header('Transfer-Encoding', 'chunked')
+            else:
+                self.response.set_bbody(file2bytes(path))
         else:
             self.response = get_response_by_error_code(404)
-        self.response.set_content_length()
+        self.response.build_length_or_chunked()
 
     def head(self):
         self.get()
         self.response.set_bbody(b'')
-
 
     def upload(self, url):
         print('START UPLOADING')
@@ -166,18 +193,19 @@ class RequestHandler:
         # One possible format for multipart/form-data
 
         # ------WebKitFormBoundary7MA4YWxkTrZu0gW\r\n
-        # Content-Disposition: form-data; name="firstfile"; filename="a.txt"\r\n
+        # Content-Disposition: form-data; name="firstFile"; filename="a.txt"\r\n
         # Content-Type: text/plain\r\n
         # \r\n
         # 123\r\n
+        # ------WebKitFormBoundary7MA4YWxkTrZu0gW\r\n
+        # Content-Disposition: form-data; name="secondFile"; filename="b.txt"\r\n
+        # Content-Type: text/plain\r\n
+        # \r\n
+        # 456\r\n
         # ------WebKitFormBoundary7MA4YWxkTrZu0gW--\r\n
 
-        # 其中------WebKitFormBoundary7MA4YWxkTrZu0gW是boundary，在request的header中
-        # Content-Disposition: form-data; name="firstfile"; filename="a.txt"中的filename是文件名
-        # \r\n\r\n之后的是文件内容, 即123\r\n
         # Warning: this form can contain multiple parts, please do NOT assume there are only TWO boundaries.
 
-        # Get the boundary
         boundary = get_boundary(self.request.headers['Content-Type'])
         print('The boundary of the form is: ', boundary)
         muti_parts = extract_every_part(self.request.body, boundary)
@@ -190,12 +218,14 @@ class RequestHandler:
             else:
                 filename = os.urandom(10)
 
-            with open(f'{path}/{filename}', 'wb') as f:
+            f = open(f'{path}/{filename}', 'wb')
+            try:
                 f.write(body)
                 print(f'File [{filename}] uploaded successfully.')
+            except Exception:
+                print(f'Oops fails to upload file [{filename}].')
+            finally:
                 f.close()
-                continue
-            print(f'Oops fails to upload file [{filename}].')
         print()
 
     def delete(self, url):
