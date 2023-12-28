@@ -8,7 +8,7 @@ Using persistent connection if 'Connection' is not set to 'close'.
 To set up the server, execute script **'run.sh'**
 
 ## How to do testing?
-Under directory *test_pkg*, we have an official testfile *official_test*, it may upload some file in directory *test_pkg/tmp*.  
+Under directory *test_pkg*, we have an official test file *official_test*.  
 (This file is downloaded from blackboard directly, no additional changes)
 
 ## GET
@@ -33,4 +33,6 @@ As long as the username matches and the file exists, the deletion will success.
 
 
 ## TODO
-Breakpoint transmission
+Breakpoint transmission  
+Small flaw in argument SUSTech-HTTP  
+Merging in encryption
