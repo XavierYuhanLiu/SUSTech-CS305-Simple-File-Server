@@ -75,7 +75,8 @@ class Response:
     def __init__(self):
         self.status_code = 200
         self.body = b"OK."
-        self.headers = {"Connection": "keep-alive"}
+        self.headers = {'Connection': 'keep-alive',
+                        'Accept-Ranges': 'bytes'}
         # The connection will be closed only when the client sends a "Connection: close" header.
         self.encryption = False
         self.symmetric_key = None
@@ -127,6 +128,7 @@ class Response:
 
     def build_length_or_chunked(self):
         if 'Transfer-Encoding' in self.headers and self.headers['Transfer-Encoding'] == 'chunked':
+            # No need to set Content-Length
             pass
         else:
             self.set_header('Content-Length', len(self.body))
@@ -145,6 +147,8 @@ def get_response_by_error_code(code: int) -> Response:
     return response
 
 
-def get_response_200() -> Response:
+def get_response_200(body: bytes) -> Response:
     response = Response()
+    response.body = body
+    response.build_length_or_chunked()
     return response

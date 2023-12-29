@@ -1,17 +1,19 @@
 import os
 
 from models.code_template import render_page
-from models.http_model import Response, get_response_by_error_code
-from models.util import extract_url_and_args, get_boundary, extract_every_part, extract_from_part
+from models.http_model import Response, get_response_by_error_code, get_response_200
+from models.util import extract_url_and_args, get_boundary, extract_every_part, extract_from_part, gen_boundary
 from models.auth_core import extract_usr_pass
 
 
 root_dir = os.curdir + '/data'
 
+CRLF = b'\r\n'
 MEGABYTE = 1024 * 1024
 HTML = "text/html"
 FILE = "application/octet-stream"
 TEXT = "text/plain"
+
 
 
 def is_method_allowed(url, method):
@@ -62,6 +64,44 @@ def file2chunked_bytes(path: str) -> bytes:
     # end = time.time()
     # print(end - start)
     return body
+
+
+def get_filesize(path: str) -> int:
+    # It's guaranteed the file exists
+    return os.stat(path).st_size
+
+def analyze_range(range_str: str, filesize: int):
+    """Example formats:
+
+    * 0-200
+    * -200
+    * 400-
+    """
+    range_list = range_str.split('-')
+    if len(range_list) != 2:
+        return None
+    if '' in range_list:
+        if range_list[0] == '':
+            # -200
+            ran = int(range_list[1])
+            if ran > filesize or ran <= 0:
+                return None
+            return [filesize - ran, filesize]
+        elif range_list[1] == '':
+            # 400-
+            ran = int(range_list[0])
+            if ran < 0 or ran >= filesize:
+                return None
+            return [ran, filesize]
+        else:
+            return None
+    else:
+        l = int(range_list[0])
+        r = int(range_list[1])
+        if 0 <= l <= r < filesize:
+            return [l, r + 1]
+        else:
+            return None
 
 
 class RequestHandler:
@@ -171,6 +211,8 @@ class RequestHandler:
             if 'chunked' in kargs and kargs['chunked'] == '1':
                 self.response.set_bbody(file2chunked_bytes(path))
                 self.response.set_header('Transfer-Encoding', 'chunked')
+            elif 'Range' in self.request.headers:
+                self.partial(self.request.headers['Range'], path)
             else:
                 self.response.set_bbody(file2bytes(path))
         else:
@@ -238,3 +280,47 @@ class RequestHandler:
             # Delete the file
         os.remove(path)
         print('FILE ' + path + ' has been removed successfully'.upper())
+
+    def partial(self, head_range: str, path):
+        all_ranges = head_range.split(',')
+        if len(all_ranges) == 1:
+            filesize = get_filesize(path)
+            range_list = analyze_range(all_ranges[0], filesize)
+            if range_list is None:
+                self.response = get_response_by_error_code(416)
+            else:
+                file_bytes = file2bytes(path)
+                content_range = f'bytes {range_list[0]}-{range_list[1] - 1}/{filesize}'
+                self.response.status_code = 206
+                self.response.set_header('Content-Range', content_range)
+                self.response.set_bbody(file_bytes[range_list[0]:range_list[1]])
+        else:
+            filesize = get_filesize(path)
+            range_list = []
+            for range_str in all_ranges:
+                ran = analyze_range(range_str, filesize)
+                if ran is None:
+                    self.response = get_response_by_error_code(416)
+                    return
+                range_list.append(ran)
+
+            boundary = gen_boundary()
+            self.response.set_content_type('multipart/byteranges; boundary=' + boundary)
+            self.response.status_code = 206
+            # self.response.set_bbody(b'Still working...')
+
+            filebytes = file2bytes(path)
+            body = b''
+            for ran in range_list:
+                first_line = b'--' + boundary.encode('utf-8')
+                content_type = 'Content-Type: ' + FILE
+                content_range = f'Content-Range: bytes {ran[0]}-{ran[1] - 1}/{filesize}'
+
+                part_body = filebytes[ran[0]:ran[1]]
+                body += first_line + CRLF + \
+                    content_type.encode('utf-8') + CRLF + \
+                    content_range.encode('utf-8') + CRLF + \
+                    CRLF + \
+                    part_body + CRLF
+            body += b'--' + boundary.encode('utf-8') + b'--'
+            self.response.set_bbody(body)
