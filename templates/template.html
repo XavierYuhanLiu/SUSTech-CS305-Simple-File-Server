@@ -1,0 +1,108 @@
+<!DOCTYPE html>
+<html lang='en'>
+
+    <head>
+        <title>File Server listening on {{ root }}</title>
+        <link href="https://cdn.jsdelivr.net/npm/daisyui@4.4.24/dist/full.min.css" rel="stylesheet" type="text/css" />
+        <script src="https://cdn.tailwindcss.com"></script>
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    </head>
+
+    <body class="h-screen bg-slate-100">
+        <div class="p-4 flex gap-4">
+
+            <div class="mockup-browser w-2/3 bg-white  border border-base-300 shadow-xl">
+                <div class="mockup-browser-toolbar bg-base-100">
+                  <div class="input border border-base-300">{{ root }}</div>
+                </div>
+                
+                <div class="flex justify-center w-full px-8 py-8 border-t border-base-300">
+                    <div class="overflow-x-auto">
+                        <table class="table w-full">
+                          <!-- head -->
+                          <thead>
+                            <tr>
+                              <th></th>
+                              <th>Name</th>
+                              <th>Type</th>
+                              <th>Actions</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                          {% for file in files %}
+                          
+                            <!-- row 1 -->
+                            <tr>
+                              <th>{{loop.index}}</th>
+                              <td>{{ file['name'] }}</td>
+                              <td>{{ file['type'] }}</td>
+                              <td>
+                                {% if file['type'] == 'File' %}
+                                <a class="btn btn-sm" href={{file.href}}>
+                                    <img class="fill-current w-4 h-4" src="https://www.svgrepo.com/download/533682/download.svg"></img>
+                                    <span>Download</span>
+                                </a>
+                                <button class="btn btn-sm">
+                                  <img class="fill-current w-4 h-4" src="https://www.svgrepo.com/download/533025/trash-undo.svg" alt="delete"></img>
+                                  <span>Delete</span>
+                                </button>
+                                {% else %} 
+                                <a class="btn btn-sm" href={{file.href}}>
+                                  <img class="fill-current w-4 h-4" src="https://www.svgrepo.com/download/489457/enter.svg"></img>
+                                  <span>Enter Folder</span>
+                                </a>
+                                {% endif %}
+                              </td>
+                            </tr>
+                          {% endfor%}
+                          </tbody>
+                        </table>
+                      </div>
+                </div>
+
+                <a class="absolute btn btn-sm bottom-2 right-2 btn btn-sm" href={{ parentUrl }}>
+                  <img class="fill-current w-4 h-4" src="https://www.svgrepo.com/download/514186/out.svg"></img>
+                </a>
+            </div>
+
+            <div class="w-1/3 flex flex-col gap-4">
+
+                <div class="card w-96 bg-base-100 shadow-xl">
+                    <figure class="w-full h-48">
+                        <img src="https://upload.wikimedia.org/wikipedia/commons/c/cd/Night_of_SUSTech.jpg" 
+                        alt="SUSTech-Night" />
+                    </figure>
+                    <div class="card-body">
+                        <h2 class="card-title">Welcome, 12111811</h2>
+                        <p>This is the file server project in SUSTech CS305. Hope you could have a good day!</p>
+                    </div>
+                </div>
+
+                <div class="card w-96 bg-base-100 shadow-xl">
+                    <div class="card-body">
+                      <h2 class="card-title">Upload</h2>
+                      <p>Choose and upload your file here.</p>
+                        <form>
+                            <div class="items-center justify-center w-full">
+                                <label for="dropzone-file" class="flex flex-cols items-center justify-center w-full h-56 border-2 border-gray-300 border-dashed rounded-lg cursor-pointer bg-gray-50 dark:hover:bg-bray-800 dark:bg-gray-700 hover:bg-gray-100 dark:border-gray-600 dark:hover:border-gray-500 dark:hover:bg-gray-600">
+                                    <div class="flex flex-col items-center justify-center pt-5 pb-6">
+                                        <svg class="w-8 h-8 mb-4 text-gray-500 dark:text-gray-400" aria-hidden="true" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 20 16">
+                                            <path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 13h3a3 3 0 0 0 0-6h-.025A5.56 5.56 0 0 0 16 6.5 5.5 5.5 0 0 0 5.207 5.021C5.137 5.017 5.071 5 5 5a4 4 0 0 0 0 8h2.167M10 15V6m0 0L8 8m2-2 2 2"/>
+                                        </svg>
+                                        <p class="mb-2 text-sm text-gray-500 dark:text-gray-400"><span class="font-semibold">Click to upload</span> or drag and drop</p>
+                                        <p class="text-xs text-gray-500 dark:text-gray-400">Any file required in the CS305 Project is OK.</p>
+                                    </div>
+                                    <input id="dropzone-file" type="file" class="hidden" />
+                                </label>
+                            </div> 
+                        </form>
+                    </div>
+                </div>
+
+            </div>
+            
+            
+        </div>
+
+    </body>
+</html>
