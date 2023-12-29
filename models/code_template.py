@@ -21,6 +21,8 @@ def render_page(root: str, port: int, url: str, enable: bool):
             href = f'"http://localhost:{port}/{ref.strip("/")}?SUSTech-HTTP=0"'
             files.append({
                 'name': f,
+                'name_with_quote': '"' + f + '"',
+                'ref':'"' + ref + '"',
                 'href': href,
                 'type': 'Folder' if os.path.isdir(os.path.join(root, f)) else 'File',
                 'delete': 'delete'

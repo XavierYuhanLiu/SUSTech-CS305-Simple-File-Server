@@ -5,6 +5,7 @@
         <title>File Server listening on {{ root }}</title>
         <link href="https://cdn.jsdelivr.net/npm/daisyui@4.4.24/dist/full.min.css" rel="stylesheet" type="text/css" />
         <script src="https://cdn.tailwindcss.com"></script>
+        <script src="https://cdn.jsdelivr.net/npm/axios@1.1.2/dist/axios.min.js"></script>
         <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     </head>
 
@@ -42,8 +43,8 @@
                                     <img class="fill-current w-4 h-4" src="https://www.svgrepo.com/download/533682/download.svg"></img>
                                     <span>Download</span>
                                 </a>
-                                <button class="btn btn-sm">
-                                  <img class="fill-current w-4 h-4" src="https://www.svgrepo.com/download/533025/trash-undo.svg" alt="delete"></img>
+                                <button class="btn btn-sm"  id={{ file.name_with_quote }} name={{file.name_with_quote}}>
+                                  <img class="fill-current w-4 h-4" id="delete" src="https://www.svgrepo.com/download/533025/trash-undo.svg" alt="delete"></img>
                                   <span>Delete</span>
                                 </button>
                                 {% else %} 
@@ -60,7 +61,7 @@
                       </div>
                 </div>
 
-                <a class="absolute btn btn-sm bottom-2 right-2 btn btn-sm" href={{ parentUrl }}>
+                <a class="absolute btn btn-sm bottom-2 right-2 btn btn-sm" href={{ parentUrl }} id="back">
                   <img class="fill-current w-4 h-4" src="https://www.svgrepo.com/download/514186/out.svg"></img>
                 </a>
             </div>
@@ -92,17 +93,51 @@
                                         <p class="mb-2 text-sm text-gray-500 dark:text-gray-400"><span class="font-semibold">Click to upload</span> or drag and drop</p>
                                         <p class="text-xs text-gray-500 dark:text-gray-400">Any file required in the CS305 Project is OK.</p>
                                     </div>
-                                    <input id="dropzone-file" type="file" class="hidden" />
+                                    <input id="dropzone-file" type="file" class="hidden"/>
                                 </label>
                             </div> 
                         </form>
                     </div>
                 </div>
-
             </div>
-            
-            
         </div>
 
+        <script>
+          {% for file in files%}
+            {% if file['type'] == 'File' %}
+              document.getElementById({{ file.name_with_quote }}).addEventListener("click", function() {
+                axios.post('/delete?path='+{{ file.ref }},
+                {"Authorization": "Basic Y2xpZW50MToxMjM="}
+                )
+                .then(function (response) {
+                  console.log(response);
+                  window.location.reload();
+                })
+                .catch(function (error) {
+                  console.log(error);
+                });
+              });
+            {% endif %}
+          {% endfor %}
+
+          document.getElementById("dropzone-file").addEventListener("change", function() {
+            var file = document.getElementById("dropzone-file").files[0];
+            var formData = new FormData();
+            formData.append("file", file);
+            axios.post('/upload?path='+{{ root }},
+            formData,
+            {"Authorization": "Basic Y2xpZW50MToxMjM="}
+            )
+            .then(function (response) {
+              console.log(response);
+              window.location.reload();
+            })
+            .catch(function (error) {
+              console.log(error);
+            });
+          });
+          });
+
+        </script>
     </body>
 </html>
