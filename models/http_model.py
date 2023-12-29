@@ -1,11 +1,6 @@
 import socket
-import base64
 
 from models.util import status_codes, display_some
-
-from cryptography.hazmat.backends import default_backend
-from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
-from cryptography.hazmat.primitives import padding as pad
 
 
 def build_head(head: str) -> list[str, str, str, dict]:
@@ -34,6 +29,15 @@ class Request:
         self.headers = headers
         self.body = body  # In BINARY
         self.http_type = http_type  # idk why we use this
+
+    def to_bytes(self):
+        body = f'{self.method} {self.url} {self.http_type}\r\n'
+        headers = '\r\n'.join('{}: {}'.format(k, v) for k, v in self.headers.items())
+        if headers == '':
+            body += '\r\n'
+        else:
+            body += headers + '\r\n\r\n'
+        return body.encode('utf-8') + self.body
 
     @classmethod
     def from_socket(cls, sock: socket.socket) -> "Request":
@@ -75,12 +79,10 @@ class Response:
     def __init__(self):
         self.status_code = 200
         self.body = b"OK."
-        self.headers = {'Connection': 'keep-alive',
-                        'Accept-Ranges': 'bytes'}
         # The connection will be closed only when the client sends a "Connection: close" header.
-        self.encryption = False
-        self.symmetric_key = None
-        self.iv = None
+        self.headers = {'Connection': 'keep-alive',
+                        'Accept-Ranges': 'bytes',
+                        'Content-Type': 'text/html'}
 
     def generate_status_line(self):
         return "HTTP/1.1 " + status_codes[self.status_code] + '\r\n'
@@ -90,17 +92,7 @@ class Response:
         Set the body from a str content.
         :param body: In str format.
         """
-        if self.encryption:
-            # use symmetric key to encrypt body
-            # encrypt body
-            cipher = Cipher(algorithms.AES(self.symmetric_key), modes.CBC(self.iv), backend=default_backend())
-            encryptor = cipher.encryptor()
-            block_size = cipher.algorithm.block_size // 8
-            padder = pad.PKCS7(block_size * 8).padder()
-            body = padder.update(body.encode('utf-8')) + padder.finalize()
-            body = base64.b64encode(encryptor.update(body) + encryptor.finalize()).decode('utf-8')
         self.body = body.encode("utf-8")
-        print("encrypted body", self.body)
 
     def set_bbody(self, body):
         """
@@ -135,15 +127,19 @@ class Response:
 
     def to_bytes(self):
         head = self.generate_status_line()
-        head += "\r\n".join("{}: {}".format(k, v) for k, v in self.headers.items())
-        head += "\r\n\r\n"
-        return head.encode("utf-8") + self.body
+        headers = "\r\n".join("{}: {}".format(k, v) for k, v in self.headers.items())
+        if headers == '':
+            head += '\r\n'
+        else:
+            head += headers + '\r\n\r\n'
+        return head.encode('utf-8') + self.body
 
 
 def get_response_by_error_code(code: int) -> Response:
     response = Response()
     response.status_code = code
     response.generate_error_page()
+    response.build_length_or_chunked()
     return response
 
 

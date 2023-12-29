@@ -1,6 +1,7 @@
-# HTTP status code descriptions
 import random
 
+
+# HTTP status code descriptions
 status_codes = {
     200: '200 OK',
     206: '206 Partial Content',
