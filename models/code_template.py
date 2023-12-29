@@ -7,8 +7,7 @@ with open("templates/template.html", "r") as Tem:
     template = Template(Tem.read())
 
 
-
-def render_page(root: str, port: int, url: str, enable: bool):
+def render_page(root: str, port: int, usrname: str, base64str: str):
     cur_dir = '/'.join(root.split('/')[2:])
     parent = '/'.join(cur_dir.split('/')[:-1])
     files = []
@@ -29,8 +28,10 @@ def render_page(root: str, port: int, url: str, enable: bool):
             })
     
     return template.render(
-        root = root,
-        files = files,
-        parentUrl = f'"http://localhost:{port}/{parent}?SUSTech-HTTP=0"'
+        usrname=usrname,
+        base64str=base64str,
+        root=root,
+        files=files,
+        parentUrl=f'"http://localhost:{port}/{parent}?SUSTech-HTTP=0"'
     )
 

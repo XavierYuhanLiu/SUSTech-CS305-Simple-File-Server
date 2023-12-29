@@ -201,7 +201,9 @@ class RequestHandler:
         if os.path.isdir(path):
             if "SUSTech-HTTP" not in kargs or kargs["SUSTech-HTTP"] == '0':
                 self.response.set_content_type(HTML)
-                self.response.set_strbody(render_page(path, self.server.port, "http://localhost:8080/upload?path=", enable))
+                base64str = self.request.headers['Authorization'].split(" ")[1]
+                usr_in_auth, _ = extract_usr_pass(base64str)
+                self.response.set_strbody(render_page(path, self.server.port, usr_in_auth, base64str))
             elif kargs["SUSTech-HTTP"] == 1:
                 # Response with the name of all items in list under the target directory
                 self.response.set_content_type(TEXT)
