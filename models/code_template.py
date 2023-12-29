@@ -26,12 +26,18 @@ def render_page(root: str, port: int, usrname: str, base64str: str):
                 'type': 'Folder' if os.path.isdir(os.path.join(root, f)) else 'File',
                 'delete': 'delete'
             })
+
+    username_in_url = cur_dir.split('/')[0]
+    
+    enable = username_in_url == usrname
     
     return template.render(
         usrname=usrname,
-        base64str=base64str,
+        base64str='"' + base64str + '"',
         root=root,
+        cur_dir='"' + cur_dir + '"',
         files=files,
-        parentUrl=f'"http://localhost:{port}/{parent}?SUSTech-HTTP=0"'
+        parentUrl=f'"http://localhost:{port}/{parent}?SUSTech-HTTP=0"',
+        enable=enable
     )
 

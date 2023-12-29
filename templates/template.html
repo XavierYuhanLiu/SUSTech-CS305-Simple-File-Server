@@ -43,10 +43,12 @@
                                     <img class="fill-current w-4 h-4" src="https://www.svgrepo.com/download/533682/download.svg"></img>
                                     <span>Download</span>
                                 </a>
-                                <button class="btn btn-sm"  id={{ file.name_with_quote }} name={{file.name_with_quote}}>
-                                  <img class="fill-current w-4 h-4" id="delete" src="https://www.svgrepo.com/download/533025/trash-undo.svg" alt="delete"></img>
-                                  <span>Delete</span>
-                                </button>
+                                  {% if enable %}
+                                    <button class="btn btn-sm"  id={{ file.name_with_quote }} name={{file.name_with_quote}}>
+                                      <img class="fill-current w-4 h-4" id="delete" src="https://www.svgrepo.com/download/533025/trash-undo.svg" alt="delete"></img>
+                                      <span>Delete</span>
+                                    </button>
+                                  {% endif %}
                                 {% else %} 
                                 <a class="btn btn-sm" href={{file.href}}>
                                   <img class="fill-current w-4 h-4" src="https://www.svgrepo.com/download/489457/enter.svg"></img>
@@ -74,31 +76,35 @@
                         alt="SUSTech-Night" />
                     </figure>
                     <div class="card-body">
-                        <h2 class="card-title">Welcome, 12111811</h2>
+                        <h2 class="card-title">Welcome, {{usrname}}</h2>
                         <p>This is the file server project in SUSTech CS305. Hope you could have a good day!</p>
                     </div>
                 </div>
 
-                <div class="card w-96 bg-base-100 shadow-xl">
-                    <div class="card-body">
-                      <h2 class="card-title">Upload</h2>
-                      <p>Choose and upload your file here.</p>
-                        <form>
-                            <div class="items-center justify-center w-full">
-                                <label for="dropzone-file" class="flex flex-cols items-center justify-center w-full h-56 border-2 border-gray-300 border-dashed rounded-lg cursor-pointer bg-gray-50 dark:hover:bg-bray-800 dark:bg-gray-700 hover:bg-gray-100 dark:border-gray-600 dark:hover:border-gray-500 dark:hover:bg-gray-600">
-                                    <div class="flex flex-col items-center justify-center pt-5 pb-6">
-                                        <svg class="w-8 h-8 mb-4 text-gray-500 dark:text-gray-400" aria-hidden="true" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 20 16">
-                                            <path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 13h3a3 3 0 0 0 0-6h-.025A5.56 5.56 0 0 0 16 6.5 5.5 5.5 0 0 0 5.207 5.021C5.137 5.017 5.071 5 5 5a4 4 0 0 0 0 8h2.167M10 15V6m0 0L8 8m2-2 2 2"/>
-                                        </svg>
-                                        <p class="mb-2 text-sm text-gray-500 dark:text-gray-400"><span class="font-semibold">Click to upload</span> or drag and drop</p>
-                                        <p class="text-xs text-gray-500 dark:text-gray-400">Any file required in the CS305 Project is OK.</p>
-                                    </div>
-                                    <input id="dropzone-file" type="file" class="hidden"/>
-                                </label>
-                            </div> 
-                        </form>
-                    </div>
-                </div>
+                {% if enable %}
+
+                  <div class="card w-96 bg-base-100 shadow-xl">
+                      <div class="card-body">
+                        <h2 class="card-title">Upload</h2>
+                        <p>Choose and upload your file here.</p>
+                          <form>
+                              <div class="items-center justify-center w-full">
+                                  <label for="dropzone-file" class="flex flex-cols items-center justify-center w-full h-56 border-2 border-gray-300 border-dashed rounded-lg cursor-pointer bg-gray-50 dark:hover:bg-bray-800 dark:bg-gray-700 hover:bg-gray-100 dark:border-gray-600 dark:hover:border-gray-500 dark:hover:bg-gray-600">
+                                      <div class="flex flex-col items-center justify-center pt-5 pb-6">
+                                          <svg class="w-8 h-8 mb-4 text-gray-500 dark:text-gray-400" aria-hidden="true" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 20 16">
+                                              <path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 13h3a3 3 0 0 0 0-6h-.025A5.56 5.56 0 0 0 16 6.5 5.5 5.5 0 0 0 5.207 5.021C5.137 5.017 5.071 5 5 5a4 4 0 0 0 0 8h2.167M10 15V6m0 0L8 8m2-2 2 2"/>
+                                          </svg>
+                                          <p class="mb-2 text-sm text-gray-500 dark:text-gray-400"><span class="font-semibold">Click to upload</span> or drag and drop</p>
+                                          <p class="text-xs text-gray-500 dark:text-gray-400">Any file required in the CS305 Project is OK.</p>
+                                      </div>
+                                      <input id="dropzone-file" type="file" class="hidden"/>
+                                  </label>
+                              </div> 
+                          </form>
+                      </div>
+                  </div>
+
+                {% endif %}
             </div>
         </div>
 
@@ -107,7 +113,7 @@
             {% if file['type'] == 'File' %}
               document.getElementById({{ file.name_with_quote }}).addEventListener("click", function() {
                 axios.post('/delete?path='+{{ file.ref }},
-                {"Authorization": "Basic Y2xpZW50MToxMjM="}
+                {"Authorization": {{base64str}}}
                 )
                 .then(function (response) {
                   console.log(response);
@@ -116,6 +122,7 @@
                 .catch(function (error) {
                   console.log(error);
                 });
+                alert("Delete successfully!");
               });
             {% endif %}
           {% endfor %}
@@ -123,10 +130,18 @@
           document.getElementById("dropzone-file").addEventListener("change", function() {
             var file = document.getElementById("dropzone-file").files[0];
             var formData = new FormData();
-            formData.append("file", file);
-            axios.post('/upload?path='+{{ root }},
-            formData,
-            {"Authorization": "Basic Y2xpZW50MToxMjM="}
+            formData.append("firstFile", file);
+            console.log("file", file)
+            console.log("Form Data", formData);
+            axios.post(
+              '/upload?path='+{{ cur_dir }},
+              formData,
+              {
+                headers:{"Content-Type": "multipart/form-data",
+                          "Authorization": {{base64str}},
+                        },
+                transformRequest: formData => formData,
+              }
             )
             .then(function (response) {
               console.log(response);
@@ -135,7 +150,7 @@
             .catch(function (error) {
               console.log(error);
             });
-          });
+            alert("Upload successfully!");
           });
 
         </script>
