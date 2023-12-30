@@ -108,51 +108,53 @@
             </div>
         </div>
 
-        <script>
-          {% for file in files%}
-            {% if file['type'] == 'File' %}
-              document.getElementById({{ file.name_with_quote }}).addEventListener("click", function() {
-                axios.post('/delete?path='+{{ file.ref }},
-                {"Authorization": {{base64str}}}
-                )
-                .then(function (response) {
-                  console.log(response);
-                  window.location.reload();
-                })
-                .catch(function (error) {
-                  console.log(error);
+        {% if enable %}
+          <script>
+            {% for file in files%}
+              {% if file['type'] == 'File' %}
+                document.getElementById({{ file.name_with_quote }}).addEventListener("click", function() {
+                  axios.post('/delete?path='+{{ file.ref }},
+                  {"Authorization": {{base64str}}}
+                  )
+                  .then(function (response) {
+                    console.log(response);
+                    window.location.reload();
+                  })
+                  .catch(function (error) {
+                    console.log(error);
+                  });
+                  alert("Delete successfully!");
                 });
-                alert("Delete successfully!");
-              });
-            {% endif %}
-          {% endfor %}
+              {% endif %}
+            {% endfor %}
 
-          document.getElementById("dropzone-file").addEventListener("change", function() {
-            var file = document.getElementById("dropzone-file").files[0];
-            var formData = new FormData();
-            formData.append("firstFile", file);
-            console.log("file", file)
-            console.log("Form Data", formData);
-            axios.post(
-              '/upload?path='+{{ cur_dir }},
-              formData,
-              {
-                headers:{"Content-Type": "multipart/form-data",
-                          "Authorization": {{base64str}},
-                        },
-                transformRequest: formData => formData,
-              }
-            )
-            .then(function (response) {
-              console.log(response);
-              window.location.reload();
-            })
-            .catch(function (error) {
-              console.log(error);
+            document.getElementById("dropzone-file").addEventListener("change", function() {
+              var file = document.getElementById("dropzone-file").files[0];
+              var formData = new FormData();
+              formData.append("firstFile", file);
+              console.log("file", file)
+              console.log("Form Data", formData);
+              axios.post(
+                '/upload?path='+{{ cur_dir }},
+                formData,
+                {
+                  headers:{"Content-Type": "multipart/form-data",
+                            "Authorization": {{base64str}},
+                          },
+                  transformRequest: formData => formData,
+                }
+              )
+              .then(function (response) {
+                console.log(response);
+                window.location.reload();
+              })
+              .catch(function (error) {
+                console.log(error);
+              });
+              alert("Upload successfully!");
             });
-            alert("Upload successfully!");
-          });
 
         </script>
+        {% endif %}
     </body>
 </html>
