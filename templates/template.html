@@ -134,7 +134,7 @@
               formData.append("firstFile", file);
               console.log("file", file)
               console.log("Form Data", formData);
-              axios.post(
+              axios.postForm(
                 '/upload?path='+{{ cur_dir }},
                 formData,
                 {

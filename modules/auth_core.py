@@ -53,7 +53,6 @@ class AuthCore:
         if 'Cookie' in headers:
             session_id = None
             for cookie in headers['Cookie'].split('; '):
-                print(cookie)
                 if cookie.startswith('session-id'):
                     session_id = cookie[11:]
             if self.is_valid_cookie(session_id):

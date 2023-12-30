@@ -15,7 +15,7 @@ def render_page(root: str, port: int, usrname: str, base64str: str):
     
     return template.render(
         usrname=usrname,
-        base64str='"' + base64str + '"',
+        base64str='"base ' + base64str + '"',
         root=root,
         cur_dir='"' + cur_dir + '"',
         files=files,

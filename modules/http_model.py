@@ -11,6 +11,9 @@ def build_head(head: str) -> list[str, str, str, dict]:
     :return: Method, url, http_type and headers
     """
     lines = head.split('\r\n')
+    print('--Head:')
+    for line in lines:
+        print(line)
     method, url, http_type = lines[0].split(' ')
     headers = {}
     for header in lines[1:]:
@@ -45,7 +48,7 @@ class Request:
         # First we try to extract the data before the body part
         # We try to extract the first 1024 bytes. In most cases, head will not exceed 4096 bytes.
         # In this project, it is mandatory that the head(including\r\n\r\n) must not exceed 4096.
-        data = sock.recv(4096)
+        data = sock.recv(10000)
         if data == b'':
             # That means the connection is about to close.
             return None
@@ -59,15 +62,17 @@ class Request:
         # If the method is POST, the content length may exceed 4096, we need to obtain the remaining part.
         # Otherwise, partial body is the whole body, it can be empty
         method, url, http_type, headers = build_head(head_part)
-        if method == 'POST':
-            # Keep receiving data to complete the body
-            unreceived_data_bytes = int(headers['Content-Length']) - len(partial_body)
-            while unreceived_data_bytes > 0:
-                body += sock.recv(512)
-                unreceived_data_bytes -= 512
-        else:
-            # do nothing.
-            pass
+        if 'Content-Length' in headers:
+            while (len(body) < int(headers['Content-Length'])):
+                print('---Receiving body---')
+                body += sock.recv(4096)
+                last = body.split(b'\r\n')[-1]
+                try:
+                    last = last.decode('utf-8')
+                    if last == '--\r\n':
+                        break
+                except:
+                    pass
         print('--Request:')
         print(head_part)
         display_some(body)
