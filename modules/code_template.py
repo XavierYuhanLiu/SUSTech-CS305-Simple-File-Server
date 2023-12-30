@@ -10,6 +10,20 @@ with open("templates/template.html", "r") as Tem:
 def render_page(root: str, port: int, usrname: str, base64str: str):
     cur_dir = '/'.join(root.split('/')[2:])
     parent = '/'.join(cur_dir.split('/')[:-1])
+    files = getFileList(root, port, cur_dir)
+    enable = chechPrivilege(usrname, cur_dir)
+    
+    return template.render(
+        usrname=usrname,
+        base64str='"' + base64str + '"',
+        root=root,
+        cur_dir='"' + cur_dir + '"',
+        files=files,
+        parentUrl=f'"http://localhost:{port}/{parent}?SUSTech-HTTP=0"',
+        enable=enable
+    )
+
+def getFileList(root, port, cur_dir):
     files = []
 
     if os.path.exists(root):
@@ -26,18 +40,12 @@ def render_page(root: str, port: int, usrname: str, base64str: str):
                 'type': 'Folder' if os.path.isdir(os.path.join(root, f)) else 'File',
                 'delete': 'delete'
             })
+            
+    return files
 
+def chechPrivilege(usrname, cur_dir):
     username_in_url = cur_dir.split('/')[0]
     
     enable = username_in_url == usrname
-    
-    return template.render(
-        usrname=usrname,
-        base64str='"' + base64str + '"',
-        root=root,
-        cur_dir='"' + cur_dir + '"',
-        files=files,
-        parentUrl=f'"http://localhost:{port}/{parent}?SUSTech-HTTP=0"',
-        enable=enable
-    )
+    return enable
 

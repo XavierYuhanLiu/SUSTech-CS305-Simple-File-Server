@@ -3,10 +3,10 @@ import socket
 import argparse
 import threading
 
-from models.auth_core import AuthCore
-from models.http_model import Request
-from models.request_handler import RequestHandler
-from models.util import display_some
+from modules.auth_core import AuthCore
+from modules.http_model import Request
+from modules.request_handler import RequestHandler
+from modules.util import display_some
 
 
 class HTTPServer:

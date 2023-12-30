@@ -2,8 +2,8 @@ import socket
 
 from cryptography.hazmat.primitives import serialization
 
-from models.encryption import *
-from models.http_model import Request
+from modules.encryption import *
+from modules.http_model import Request
 
 ENC = 'ENCRYPTION/1.1'
 POST = 'POST'

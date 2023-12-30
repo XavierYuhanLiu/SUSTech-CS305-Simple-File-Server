@@ -32,7 +32,5 @@ As long as the username matches and the file exists, the deletion will success.
 
 
 
-## TODO
-Breakpoint transmission  
-Small flaw in argument SUSTech-HTTP  
-Merging in encryption
+## Start Server
+python server.py -i localhost -p 8080

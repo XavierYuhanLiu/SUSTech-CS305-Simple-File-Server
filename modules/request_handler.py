@@ -1,11 +1,11 @@
 from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric import rsa
 
-from models.auth_core import extract_usr_pass
-from models.code_template import render_page
-from models.encryption import *
-from models.http_model import Response, get_response_by_error_code, get_response_200
-from models.util import extract_url_and_args, get_boundary, extract_every_part, extract_from_part, gen_boundary
+from modules.auth_core import extract_usr_pass
+from modules.code_template import render_page
+from modules.encryption import *
+from modules.http_model import Response, get_response_by_error_code, get_response_200
+from modules.util import extract_url_and_args, get_boundary, extract_every_part, extract_from_part, gen_boundary
 
 root_dir = os.curdir + '/data'
 

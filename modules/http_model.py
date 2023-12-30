@@ -1,6 +1,7 @@
 import socket
+from modules.status_codes import status_codes
 
-from models.util import status_codes, display_some
+from modules.util import display_some
 
 
 def build_head(head: str) -> list[str, str, str, dict]:
