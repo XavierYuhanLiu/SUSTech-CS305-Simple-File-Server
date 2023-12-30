@@ -51,9 +51,11 @@ class AuthCore:
 
         # User has a cookie. Validate the cookie.
         if 'Cookie' in headers:
-            session_id = headers['Cookie'][11:]
-            print(session_id)
-            print(self.session)
+            session_id = None
+            for cookie in headers['Cookie'].split('; '):
+                print(cookie)
+                if cookie.startswith('session-id'):
+                    session_id = cookie[11:]
             if self.is_valid_cookie(session_id):
                 session_key = self.session[session_id]
                 headers['Authorization'] = session_key
