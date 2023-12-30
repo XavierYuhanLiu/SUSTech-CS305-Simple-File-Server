@@ -35,8 +35,11 @@ def getFileList(root, port, cur_dir):
             files.append({
                 'name': f,
                 'name_with_quote': '"' + f + '"',
+                'name_with_quote_fragment': '"' + f + '#fragment"',
                 'ref':'"' + ref + '"',
+                'size': '"' + str(os.path.getsize(os.path.join(root, f))) + '"',
                 'href': href,
+                'href_chunked': href + "?chunked=1",
                 'type': 'Folder' if os.path.isdir(os.path.join(root, f)) else 'File',
                 'delete': 'delete'
             })

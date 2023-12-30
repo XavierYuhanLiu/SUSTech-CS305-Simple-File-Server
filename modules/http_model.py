@@ -11,9 +11,6 @@ def build_head(head: str) -> list[str, str, str, dict]:
     :return: Method, url, http_type and headers
     """
     lines = head.split('\r\n')
-    print('--Head:')
-    for line in lines:
-        print(line)
     method, url, http_type = lines[0].split(' ')
     headers = {}
     for header in lines[1:]:
