@@ -45,8 +45,7 @@ class Request:
         # First we try to extract the data before the body part
         # We try to extract the first 1024 bytes. In most cases, head will not exceed 4096 bytes.
         # In this project, it is mandatory that the head(including\r\n\r\n) must not exceed 4096.
-        data = sock.recv(10000)
-        print(data.decode('utf-8'))
+        data = sock.recv(8192)
         if data == b'':
             # That means the connection is about to close.
             return None
@@ -61,7 +60,7 @@ class Request:
         # Otherwise, partial body is the whole body, it can be empty
         method, url, http_type, headers = build_head(head_part)
         if 'Content-Length' in headers:
-            while (len(body) < int(headers['Content-Length'])):
+            while len(body) < int(headers['Content-Length']):
                 body += sock.recv(4096)
         print('--Request:')
         print(head_part)

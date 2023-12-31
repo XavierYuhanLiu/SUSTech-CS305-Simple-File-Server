@@ -72,11 +72,21 @@ class Client:
         print(response.decode('utf-8'))
 
     def run(self):
+        print('--------Start-Communication--------')
         body = b''
+        url = '/client1/a.txt'
+        ciphertext = self.get(url, body)
+        self.show_enc_process(ciphertext)
+
+        body = b''
+        url = '/client1?SUSTech-HTTP=1'
+        ciphertext = self.get(url, body)
+        self.show_enc_process(ciphertext)
+
         url = '/delete?path=client2/tommy.jpg'
+        # This will fail because user in auth is client1
         ciphertext = self.post(url, body)
-        print(ciphertext)
-        print(decrypt_sym(ciphertext, self.key, self.iv).decode('utf-8'))
+        self.show_enc_process(ciphertext)
 
     def get(self, url, body):
         headers = {"Authorization": "Basic Y2xpZW50MToxMjM="}
@@ -95,6 +105,12 @@ class Client:
         request = Request(POST, url, headers, enc_body, ENC)
         self.socket.sendall(request.to_bytes())
         return get_response_body(self.socket)
+
+    def show_enc_process(self, ciphertext):
+        print(f'This is the ciphertext:\n{ciphertext}')
+        print('After decryption:')
+        print(decrypt_sym(ciphertext, self.key, self.iv).decode('utf-8'))
+        print()
 
 
 if __name__ == '__main__':

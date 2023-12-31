@@ -244,7 +244,7 @@ class RequestHandler:
                 # Delete
                 self.delete(path)
         else:
-            self.response.set_strbody('<h1>Other POST</h1>')
+            self.response = get_response_by_error_code(405)
         self.response.build_length_or_chunked()
 
     def get(self):
@@ -277,6 +277,7 @@ class RequestHandler:
             else:
                 self.response.set_bbody(file2bytes(path))
         else:
+            # One is only allowed to upload or delete.
             self.response = get_response_by_error_code(404)
         self.response.build_length_or_chunked()
 
