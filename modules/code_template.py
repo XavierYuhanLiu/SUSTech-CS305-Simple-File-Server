@@ -39,7 +39,7 @@ def getFileList(root, port, cur_dir):
                 'ref':'"' + ref + '"',
                 'size': '"' + str(os.path.getsize(os.path.join(root, f))) + '"',
                 'href': href,
-                'href_chunked': href + "?chunked=1",
+                'href_chunked': href[:-1] + '?chunked=1"',
                 'type': 'Folder' if os.path.isdir(os.path.join(root, f)) else 'File',
                 'delete': 'delete'
             })
