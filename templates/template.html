@@ -171,8 +171,7 @@
                   "Authorization": {{base64str}},
                   "Range": fragments,
                 };
-                console.log(headers);
-                var res = axios.get({{ file.ref }},
+                var res = axios.get({{ file.href }},
                   {headers: headers}
                 )
                 .then(function (response) {
@@ -180,6 +179,7 @@
                   alert(response.data);
                 })
                 .catch(function (error) {
+                  alert(error.response.data);
                   console.log(error);
                 });
 
